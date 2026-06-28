@@ -165,15 +165,34 @@ def save_model_checkpoint(
     logger.info(f"Epoch {epoch} model has been saved.")
 
 
+def load_model_state(model: Transducer, checkpoint: dict):
+    if "model" in checkpoint:
+        model.load_state_dict(checkpoint["model"])
+        return
+
+    if "model_state_dict" in checkpoint:
+        model.load_state_dict(checkpoint["model_state_dict"])
+        return
+
+    if all(key in checkpoint for key in ("encoder", "decoder", "joint")):
+        model.encoder.load_state_dict(checkpoint["encoder"])
+        model.decoder.load_state_dict(checkpoint["decoder"])
+        model.joint.load_state_dict(checkpoint["joint"])
+        return
+
+    raise KeyError(
+        "Checkpoint must contain either a full `model` state dict or "
+        "`encoder`, `decoder`, and `joint` state dicts."
+    )
+
+
 def initialize_model(
     config: AttrDict, vocab_size: int, device: Union[str, torch.device]
 ):
     model = Transducer(config.model, vocab_size, device)
     if config.training.load_model:
-        checkpoint = torch.load(config.training.load_model)
-        model.encoder.load_state_dict(checkpoint["encoder"])
-        model.decoder.load_state_dict(checkpoint["decoder"])
-        model.joint.load_state_dict(checkpoint["joint"])
+        checkpoint = torch.load(config.training.load_model, map_location=device)
+        load_model_state(model, checkpoint)
     else:
         init_parameters(model, type="uniform")
     model.to(device)

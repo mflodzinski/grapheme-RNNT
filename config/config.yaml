@@ -38,9 +38,10 @@ training:
     epochs: 100
     max_grad_norm: 20
     show_every: 100
-    eval_every: 1
-    save_every: 5
-    load_model: False
+    eval_every: 5
+    save_every: 20
+    train_cer_samples: 128
+    load_model: info/best.epoch
     evaluate: True
     early_stopping: True
     early_stopping_patience: 5

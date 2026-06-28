@@ -11,7 +11,7 @@ from model import Transducer
 from optim import Optimizer
 from tokenizer import CharTokenizer
 from utils import AttrDict
-from typing import Union
+from typing import Optional, Union
 import utils
 
 
@@ -81,12 +81,15 @@ def eval(
     device: Union[str, torch.device],
     tracker=None,
     split_name: str = "val",
+    max_samples: Optional[int] = None,
+    log_loss: bool = True,
 ):
     model.eval()
     total_loss = 0
     total_dist = 0
     total_word = 0
     batch_steps = len(eval_data)
+    seen_samples = 0
 
     with torch.no_grad():
         for step, (inputs, inputs_length, targets, targets_length) in enumerate(eval_data):
@@ -113,12 +116,16 @@ def eval(
             dist, num_words = utils.compute_cer(predictions, transcripts)
             total_dist += dist
             total_word += num_words
+            seen_samples += inputs.size(0)
 
             process = step / batch_steps * 100
             cer = total_dist / total_word * 100
             logger.info(
                 f"-{split_name.capitalize()}-Epoch:{epoch}({process:.5f}%), CER: {cer:.5f}%"
             )
+
+            if max_samples is not None and seen_samples >= max_samples:
+                break
 
     avg_loss = total_loss / (step + 1)
     cer = total_dist / total_word * 100
@@ -127,7 +134,8 @@ def eval(
     )
 
     if tracker is not None:
-        tracker.add_scalar(f"loss_{split_name}", avg_loss, epoch)
+        if log_loss:
+            tracker.add_scalar(f"loss_{split_name}", avg_loss, epoch)
         tracker.add_scalar(f"cer_{split_name}", cer, epoch)
 
     return avg_loss, cer
@@ -166,6 +174,7 @@ def train_model(
     best_state_dict = None
     checks_without_improvement = 0
     eval_every = config.training.eval_every or config.training.save_every
+    train_cer_samples = config.training.train_cer_samples or 0
 
     if early_stopping and not config.training.evaluate:
         logger.info("Early stopping is enabled but evaluation is disabled.")
@@ -175,6 +184,19 @@ def train_model(
 
         should_evaluate = config.training.evaluate and epoch % eval_every == 0
         if should_evaluate:
+            if train_cer_samples > 0:
+                eval(
+                    epoch,
+                    model,
+                    train_data,
+                    logger,
+                    special_tokens,
+                    device,
+                    tracker,
+                    split_name="train",
+                    max_samples=train_cer_samples,
+                    log_loss=False,
+                )
             val_loss, _ = eval(
                 epoch,
                 model,
