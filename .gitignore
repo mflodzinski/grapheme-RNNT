@@ -1,0 +1,16 @@
+.venv/
+.venv-*/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.DS_Store
+
+info/
+*.epoch
+wandb/
+slurm_*.out
+slurm_*.err
+
+timit/raw/
+timit/features/
+timit/data/

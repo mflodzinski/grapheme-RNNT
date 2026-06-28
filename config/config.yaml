@@ -6,11 +6,14 @@ data:
     hop_size: 160
     num_ceps: 13
     num_mel_bins: 26
-    train_data: train_data.csv
-    test_data: test_data.csv
-    core_train: _core_train.csv
-    core_test: _core_test.csv
-    core_val: _core_val.csv
+    raw_dir: raw
+    features_dir: features
+    train_data: metadata/train_data.csv
+    test_data: metadata/test_data.csv
+    core_train: splits/core_train.csv
+    core_test: splits/core_test.csv
+    core_val: splits/core_val.csv
+    transcriptions_val: outputs/transcriptions_val.txt
     
 model:
     max_length: 150
@@ -18,28 +21,35 @@ model:
     enc:
         type: lstm
         hidden_size: 128
-        output_size: 30
         num_layers: 2
         bidirectional: True
         dropout: 0.2
     dec:
         type: lstm
         hidden_size: 128
-        output_size: 30
         num_layers: 1
         dropout: 0
-    joint:
-        inner_size: 60
 training:
     seed: 1942
     batch_size: 1
     epochs: 100
-    max_grad_norm: 100
+    max_grad_norm: 10
     show_every: 100
+    eval_every: 1
     save_every: 5
     load_model: False
     evaluate: True
-    visualization: True
+    early_stopping: True
+    early_stopping_patience: 5
+    early_stopping_min_delta: 0.0
+    restore_best_model: True
+
+wandb:
+    enabled: True
+    project: rnn-transducer
+    entity:
+    name:
+    mode: online
 
 optim:
     min_lr: 0.0001
@@ -47,11 +57,7 @@ optim:
     adjust_every: 5
     decay_ratio: 0.9
     type: sgd
-    lr: 0.0002
+    lr: 0.0001
     momentum: 0.9
-    weight_decay: 0.01
-    betas: (0.9, 0.999)
-    eps: 1e-08
-    nesterov: True
-    fused: True
-
+    weight_decay: 0.0
+    nesterov: False

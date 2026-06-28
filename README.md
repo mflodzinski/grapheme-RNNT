@@ -8,49 +8,58 @@ Architecture image from [msalhab96/RNN-Transducer](https://github.com/msalhab96/
 
 ## What It Does
 
-- Loads preprocessed TIMIT examples from CSV splits under `timit/`.
-- Reads frame-level acoustic features from `.npy` files generated next to each `.WAV`.
+- Loads preprocessed TIMIT examples from CSV splits under `timit/splits/`.
+- Reads frame-level acoustic features from `.npy` files referenced by each row's `feature_path`.
 - Builds a character-level tokenizer from the training transcripts.
 - Trains an RNN-T model with:
   - bidirectional LSTM encoder,
   - LSTM prediction network,
-  - additive joint network,
+  - Graves-style additive joint distribution over vocabulary-sized encoder and prediction logits,
   - RNN-T loss from `warprnnt_pytorch`.
 - Evaluates recognition quality with character error rate (CER).
-- Saves checkpoints and TensorBoard logs under the configured experiment directory.
+- Saves checkpoints locally and logs metrics to Weights & Biases.
 
 ## Repository Layout
 
-- `rnnt/model.py` defines the transducer, joint network, loss, and greedy recognizer.
-- `rnnt/encoder.py` implements the bidirectional LSTM encoder.
-- `rnnt/decoder.py` implements the LSTM prediction network over grapheme IDs.
-- `rnnt/data.py` loads padded acoustic features and character targets.
+- `rnnt/model.py` defines the transducer, bidirectional LSTM encoder, prediction network, joint network, loss, and greedy recognizer.
+- `rnnt/data.py` defines the PyTorch dataset, dataloaders, and batch padding.
 - `rnnt/tokenizer.py` builds the grapheme vocabulary.
 - `rnnt/train.py` runs training, validation, checkpointing, and logging.
 - `rnnt/search.py` writes decoded validation transcripts.
 - `config/config.yaml` contains model, data, training, and optimizer settings.
-- `timit/` contains the TIMIT data, CSV splits, transcripts, and preprocessing notebook.
+- `timit/raw/` contains the original TIMIT directory tree.
+- `timit/features/` contains generated acoustic feature `.npy` files, mirroring the raw TIMIT tree.
+- `timit/metadata/` contains source manifests used to scan the raw train/test trees.
+- `timit/splits/` contains the train, validation, and test CSVs used by training.
+- `timit/notebooks/preprocess.ipynb` regenerates metadata, splits, and features.
+- `timit/outputs/` contains decoded transcript outputs.
 
 ## Data
 
 The expected CSV format is:
 
 ```csv
-audio_path,transcript,duration
-timit/data/TRAIN/DR4/MMDM0/SI681.WAV,would such an act of refusal be useful,39936
+audio_path,feature_path,transcript,duration
+timit/raw/TRAIN/DR4/MMDM0/SI681.WAV,timit/features/TRAIN/DR4/MMDM0/SI681.npy,would such an act of refusal be useful,39936
 ```
 
-For every `audio_path`, the loader expects a matching `.npy` feature file beside the audio file, for example:
+For every `audio_path`, the loader reads acoustic features from `feature_path`, for example:
 
 ```text
-timit/data/TRAIN/DR4/MMDM0/SI681.npy
+timit/features/TRAIN/DR4/MMDM0/SI681.npy
 ```
 
 The default configuration uses the core TIMIT splits:
 
-- `timit/_core_train.csv`
-- `timit/_core_val.csv`
-- `timit/_core_test.csv`
+- `timit/splits/core_train.csv`
+- `timit/splits/core_val.csv`
+- `timit/splits/core_test.csv`
+
+The preprocessing notebook is at:
+
+```text
+timit/notebooks/preprocess.ipynb
+```
 
 ## Setup
 
@@ -59,10 +68,11 @@ Create an environment and install the Python dependencies used by the code:
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install torch numpy pandas pyyaml tensorboard editdistance warprnnt_pytorch
+pip install -r requirements.txt
 ```
 
-Install `warprnnt_pytorch` according to the platform-specific instructions for your PyTorch and CUDA setup. The model initialization succeeds without it, but training requires the RNN-T loss implementation.
+If `warprnnt-pytorch` fails to build on the cluster, install it separately using the cluster's CUDA/PyTorch-specific instructions after installing the rest of the requirements.
+The TIMIT files in this repo are NIST SPHERE files. The preprocessing notebook loads them with `soundfile` and uses `torchaudio` only for Kaldi-compatible MFCC extraction, so it does not require TorchCodec or FFmpeg.
 
 ## Training
 
@@ -72,18 +82,18 @@ From the repository root, run:
 python rnnt/train.py
 ```
 
-The default config trains for 100 epochs with batch size 1, SGD, gradient clipping, evaluation every 5 epochs, and checkpoint saving every 5 epochs.
+The default config trains for 100 epochs with batch size 1, SGD with momentum, gradient clipping, validation every epoch, and checkpoint saving every 5 epochs.
 
 Training outputs are written to `info/` by default:
 
 - `info/logger` for logs,
-- `info/visualizer/` for TensorBoard events,
 - `info/*.epoch` for checkpoints.
 
-To inspect TensorBoard logs:
+Metrics are logged to Weights & Biases when `wandb.enabled` is true in `config/config.yaml`.
+Authenticate once before training:
 
 ```bash
-tensorboard --logdir info/visualizer
+wandb login
 ```
 
 ## Inference
@@ -97,12 +107,16 @@ python rnnt/search.py
 The decoded and reference transcripts are written to:
 
 ```text
-timit/transcriptions_val.txt
+timit/outputs/transcriptions_val.txt
 ```
 
 ## Notes
 
 The original RNN-T paper trained the model on phoneme sequences for TIMIT. This project instead uses the text transcripts directly and optimizes over grapheme targets, making the output a character-level speech-to-text system rather than a phoneme recognizer.
+
+The tokenizer treats the literal space character as a normal grapheme. It also adds `"<pad>"` for batching and `"<blank>"` for the RNN-T null transition. `"<blank>"` is prepended only to the prediction-network input history and is not stored as a transcript target.
+
+Checkpoints produced by older versions of this repository are not compatible with the current model shapes.
 
 Reference paper:
 

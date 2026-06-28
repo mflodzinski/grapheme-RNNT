@@ -4,13 +4,10 @@ import pandas as pd
 class CharTokenizer:
     def __init__(self, transcript_path, batch_size):
         self.special_tokens = {
-            "sos": "<",
-            "eos": ">",
-            "phi": "|",
+            "pad": "<pad>",
+            "blank": "<blank>",
         }
         self.batch_size = batch_size
-        if batch_size > 1:
-            self.special_tokens["pad"] = "_"
 
         self.vocab = self.get_vocab(transcript_path)
         self.stoi = {s: i for i, s in enumerate(self.vocab)}
@@ -21,9 +18,7 @@ class CharTokenizer:
         df = pd.read_csv(transcript_path)
         all_txt = df["transcript"].str.cat(sep="")
         vocab = sorted(list(set(all_txt)))
-        if self.batch_size > 1:
-            vocab.insert(0, self.special_tokens["pad"])
-        vocab += list(self.special_tokens.values())
+        vocab = [self.special_tokens["pad"]] + vocab + [self.special_tokens["blank"]]
         return vocab
 
     def ids2tokens(self, ids):

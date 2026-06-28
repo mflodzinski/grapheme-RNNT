@@ -1,0 +1,22 @@
+# Core training and preprocessing dependencies.
+# On CUDA clusters, install torch/torchaudio with the wheel/index matching
+# the cluster CUDA version if the default PyPI wheels are not appropriate.
+torch
+torchaudio
+soundfile
+numpy
+pandas
+PyYAML
+editdistance
+wandb
+warprnnt-pytorch
+
+# Notebook support for running timit/notebooks/preprocess.ipynb.
+jupyter
+ipykernel
+
+# Optional legacy scripts under rnnt/rest/ may also need:
+# matplotlib
+# scikit-learn
+# PyQt5
+# pydub

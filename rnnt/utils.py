@@ -1,15 +1,14 @@
 from pathlib import Path
-from typing import Union
+from typing import Any, Union
 from logging import Logger
 import logging
 import os
 
-from torch.utils.tensorboard import SummaryWriter
 import yaml
 import torch
 import editdistance
 
-from data import DataLoader, AudioProcessor, TextProcessor
+from data import build_data_loader
 from optim import Optimizer
 from model import Transducer
 from tokenizer import CharTokenizer
@@ -117,12 +116,45 @@ def log_model_parameters(model: Transducer, logger: Logger):
     logger.info(f"# the number of parameters in the JointNet: {n_params - enc - dec}")
 
 
-def create_visualizer(config: AttrDict):
-    if config.training.visualization:
-        visualizer = SummaryWriter(os.path.join(config.data.exp_name, "visualizer"))
-    else:
-        visualizer = None
-    return visualizer
+def to_plain_dict(value: Any):
+    if isinstance(value, dict):
+        return {key: to_plain_dict(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [to_plain_dict(item) for item in value]
+    return value
+
+
+class WandbTracker:
+    def __init__(self, config: AttrDict):
+        try:
+            import wandb
+        except ImportError as exc:
+            raise ImportError(
+                "Weights & Biases tracking is enabled. Install wandb or set "
+                "`wandb.enabled: False` in config/config.yaml."
+            ) from exc
+
+        wandb_config = config.wandb or AttrDict()
+        self.run = wandb.init(
+            project=wandb_config.project or config.data.exp_name,
+            entity=wandb_config.entity,
+            name=wandb_config.name,
+            mode=wandb_config.mode or "online",
+            config=to_plain_dict(config),
+        )
+
+    def add_scalar(self, name: str, value: float, step: int):
+        self.run.log({name: value}, step=step)
+
+    def finish(self):
+        self.run.finish()
+
+
+def create_tracker(config: AttrDict):
+    wandb_config = config.wandb or AttrDict()
+    if wandb_config.enabled:
+        return WandbTracker(config)
+    return None
 
 
 def save_model_checkpoint(
@@ -169,39 +201,21 @@ def prepare_data_loaders(config: AttrDict):
         transcript_path=os.path.join(config.data.name, config.data.core_train), 
         batch_size=config.training.batch_size,
     )
-    audio_processor = AudioProcessor(config.data)
-    text_processor = TextProcessor(tokenizer)
 
-    train_data = DataLoader(
+    train_data = build_data_loader(
         os.path.join(config.data.name, config.data.core_train),
-        config.training.batch_size,
-        audio_processor,
-        text_processor,
+        tokenizer,
+        batch_size=config.training.batch_size,
+        shuffle=True,
     )
-    test_data = DataLoader(
+    test_data = build_data_loader(
         os.path.join(config.data.name, config.data.core_test),
-        config.training.batch_size,
-        audio_processor,
-        text_processor,
+        tokenizer,
+        batch_size=config.training.batch_size,
     )
-    val_data = DataLoader(
+    val_data = build_data_loader(
         os.path.join(config.data.name, config.data.core_val),
-        config.training.batch_size,
-        audio_processor,
-        text_processor,
+        tokenizer,
+        batch_size=config.training.batch_size,
     )
     return train_data, test_data, val_data, tokenizer
-
-def add_gaussian_noise(model, device, std_dev=0.01):
-    with torch.no_grad():
-        for param in model.parameters():
-            param.add_(torch.randn(param.size(), device=device) * std_dev)
-
-
-if __name__ == '__main__':
-    from tensorboard import notebook
-    log_dir = 'info'
-    notebook.start("--logdir=" + log_dir)
-
-# gausian weight noise
-# check loss on test set

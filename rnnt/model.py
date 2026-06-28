@@ -1,14 +1,161 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from encoder import build_encoder
-from decoder import build_decoder
+
+
+class RNNTLossAdapter(nn.Module):
+    def __init__(self, blank):
+        super(RNNTLossAdapter, self).__init__()
+        self.blank = blank
+        try:
+            from warprnnt_pytorch import RNNTLoss
+        except ImportError as exc:
+            raise ImportError(
+                "RNN-T training requires warprnnt_pytorch. Install "
+                "warprnnt_pytorch to use RNNTLossAdapter."
+            ) from exc
+
+        self.loss = RNNTLoss(blank=blank, reduction="none")
+
+    def forward(self, logits, targets, inputs_length, targets_length):
+        return self.loss(logits, targets.contiguous(), inputs_length, targets_length)
+
+
+class Encoder(nn.Module):
+    def __init__(
+        self,
+        input_size,
+        hidden_size,
+        output_size,
+        num_layers,
+        dropout,
+        bidirectional=True,
+    ):
+        super(Encoder, self).__init__()
+        self.lstm = nn.LSTM(
+            input_size=input_size,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            batch_first=True,
+            dropout=dropout,
+            bidirectional=bidirectional,
+        )
+        self.proj = EncoderProjection(hidden_size, output_size)
+
+    def forward(self, inputs, input_lengths):
+        if inputs.dim() == 2:
+            inputs = inputs.unsqueeze(0)
+        if input_lengths is not None:
+            sorted_seq_lengths, indices = torch.sort(input_lengths, descending=True)
+            inputs = inputs[indices]
+            inputs = nn.utils.rnn.pack_padded_sequence(
+                inputs, sorted_seq_lengths.cpu(), batch_first=True
+            )
+
+        self.lstm.flatten_parameters()
+        outputs, hidden = self.lstm(inputs)
+
+        if input_lengths is not None:
+            _, desorted_indices = torch.sort(indices, descending=False)
+            outputs, _ = nn.utils.rnn.pad_packed_sequence(outputs, batch_first=True)
+            outputs = outputs[desorted_indices]
+
+        logits = self.proj(outputs)
+        return logits, hidden
+
+
+class EncoderProjection(nn.Module):
+    def __init__(self, hidden_size, output_size):
+        super(EncoderProjection, self).__init__()
+        self.linear1 = nn.Linear(hidden_size, output_size)
+        self.linear2 = nn.Linear(hidden_size, output_size)
+
+    def forward(self, x):
+        forward_output, backward_output = x.chunk(2, dim=-1)
+        forward_projected = self.linear1(forward_output)
+        backward_projected = self.linear2(backward_output)
+        return forward_projected + backward_projected
+
+
+class Decoder(nn.Module):
+    def __init__(
+        self,
+        hidden_size,
+        vocab_size,
+        output_size,
+        num_layers,
+        dropout,
+    ):
+        super(Decoder, self).__init__()
+        self.one_hot_size = vocab_size - 1
+        self.embedding = self.indices2onehot
+
+        self.lstm = nn.LSTM(
+            input_size=vocab_size - 1,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            batch_first=True,
+            dropout=dropout,
+        )
+        self.proj = nn.Linear(hidden_size, output_size)
+
+    def indices2onehot(self, indices):
+        mask = indices == self.one_hot_size
+        adjusted_indices = torch.where(mask, torch.zeros_like(indices), indices).long()
+        one_hot_batch = F.one_hot(adjusted_indices, self.one_hot_size).float()
+        one_hot_batch[mask] = 0.0
+        return one_hot_batch
+
+    def forward(self, inputs, length=None, hidden=None):
+        embed_inputs = self.embedding(inputs)
+
+        if length is not None:
+            sorted_seq_lengths, indices = torch.sort(length, descending=True)
+            embed_inputs = embed_inputs[indices]
+            embed_inputs = nn.utils.rnn.pack_padded_sequence(
+                embed_inputs, sorted_seq_lengths.cpu(), batch_first=True
+            )
+
+        self.lstm.flatten_parameters()
+        outputs, hidden = self.lstm(embed_inputs, hidden)
+
+        if length is not None:
+            _, desorted_indices = torch.sort(indices, descending=False)
+            outputs, _ = nn.utils.rnn.pad_packed_sequence(outputs, batch_first=True)
+            outputs = outputs[desorted_indices]
+
+        logits = self.proj(outputs)
+        return logits, hidden
+
+
+def build_encoder(config, vocab_size):
+    if config.enc.type == "lstm":
+        return Encoder(
+            input_size=config.num_features,
+            hidden_size=config.enc.hidden_size,
+            output_size=vocab_size,
+            num_layers=config.enc.num_layers,
+            dropout=config.enc.dropout,
+            bidirectional=config.enc.bidirectional,
+        )
+    raise NotImplementedError
+
+
+def build_decoder(config, vocab_size):
+    if config.dec.type == "lstm":
+        return Decoder(
+            hidden_size=config.dec.hidden_size,
+            vocab_size=vocab_size,
+            output_size=vocab_size,
+            num_layers=config.dec.num_layers,
+            dropout=config.dec.dropout,
+        )
+    raise NotImplementedError
 
 
 class JointNet(nn.Module):
-    def __init__(self, inner_size, vocab_size):
+    def __init__(self):
         super(JointNet, self).__init__()
-        self.proj = nn.Linear(inner_size, vocab_size)
 
     def forward(self, enc_state, dec_state):
         if enc_state.dim() == 3 and dec_state.dim() == 3:
@@ -23,9 +170,7 @@ class JointNet(nn.Module):
         else:
             assert enc_state.dim() == dec_state.dim()
 
-        concat_state = enc_state + dec_state
-        output = self.proj(concat_state)
-        return output
+        return enc_state + dec_state
 
 
 class Transducer(nn.Module):
@@ -33,16 +178,12 @@ class Transducer(nn.Module):
         super(Transducer, self).__init__()
         self.config = config
         self.device = device
-        self.encoder = build_encoder(config)
+        self.encoder = build_encoder(config, vocab_size)
         self.decoder = build_decoder(config, vocab_size)
 
-        self.joint = JointNet(config.joint.inner_size, vocab_size)
+        self.joint = JointNet()
         self.blank = vocab_size - 1
-        try:
-            from warprnnt_pytorch import RNNTLoss
-            self.crit = RNNTLoss(blank=self.blank, reduction="None")
-        except ImportError:
-            self.crit = None
+        self.crit = RNNTLossAdapter(blank=self.blank)
 
     def forward(self, inputs, inputs_length, targets, targets_length):
 

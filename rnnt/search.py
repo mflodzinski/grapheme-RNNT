@@ -5,9 +5,10 @@ import os
 
 def main():
     CONFIG_PATH = "config/config.yaml"
-    OUTPUT_FILE = "timit/transcriptions_val.txt"  
 
     config = utils.load_config(CONFIG_PATH)
+    output_file = os.path.join(config.data.name, config.data.transcriptions_val)
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
     logger = utils.setup_logger(config)
     device = utils.setup_device(logger)
     
@@ -16,7 +17,7 @@ def main():
     model = utils.initialize_model(config, tokenizer.vocab_size, device)
     model.eval()
 
-    with open(OUTPUT_FILE, 'w') as f:
+    with open(output_file, 'w') as f:
         for _, (inputs, inputs_length, targets, targets_length) in enumerate(val_data):
             inputs, inputs_length, targets, targets_length = (
             inputs.to(device),
