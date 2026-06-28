@@ -9,7 +9,9 @@ pandas
 PyYAML
 editdistance
 wandb
-warprnnt-pytorch
+
+# RNN-T loss is provided by torchaudio.transforms.RNNTLoss.
+# warprnnt-pytorch can still be installed manually as an optional legacy backend.
 
 # Notebook support for running timit/notebooks/preprocess.ipynb.
 jupyter
