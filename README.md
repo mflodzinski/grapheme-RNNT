@@ -25,7 +25,7 @@ Architecture image from [msalhab96/RNN-Transducer](https://github.com/msalhab96/
 - `rnnt/data.py` defines the PyTorch dataset, dataloaders, and batch padding.
 - `rnnt/tokenizer.py` builds the grapheme vocabulary.
 - `rnnt/train.py` runs training, validation, checkpointing, and logging.
-- `rnnt/search.py` writes decoded validation transcripts.
+- `rnnt/search.py` writes decoded train, validation, and test transcripts.
 - `config/config.yaml` contains model, data, training, and optimizer settings.
 - `timit/raw/` contains the original TIMIT directory tree.
 - `timit/features/` contains generated acoustic feature `.npy` files, mirroring the raw TIMIT tree.
@@ -89,6 +89,14 @@ Training outputs are written to `info/` by default:
 - `info/logger` for logs,
 - `info/*.epoch` for checkpoints.
 
+When `training.export_transcriptions_after_training` is enabled, training also
+decodes the final restored model and writes tab-separated prediction/target
+files to:
+
+- `timit/outputs/transcriptions_train.tsv`
+- `timit/outputs/transcriptions_val.tsv`
+- `timit/outputs/transcriptions_test.tsv`
+
 Metrics are logged to Weights & Biases when `wandb.enabled` is true in `config/config.yaml`.
 Authenticate once before training:
 
@@ -98,16 +106,20 @@ wandb login
 
 ## Inference
 
-To decode the validation split with the current model initialization/checkpoint settings:
+To decode all train, validation, and test splits with the current model
+initialization/checkpoint settings:
 
 ```bash
 python rnnt/search.py
 ```
 
-The decoded and reference transcripts are written to:
+The decoded and reference transcripts are written as TSV files with
+`sample_id`, `prediction`, and `target` columns:
 
 ```text
-timit/outputs/transcriptions_val.txt
+timit/outputs/transcriptions_train.tsv
+timit/outputs/transcriptions_val.tsv
+timit/outputs/transcriptions_test.tsv
 ```
 
 ## Notes

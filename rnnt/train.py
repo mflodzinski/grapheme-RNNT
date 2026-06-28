@@ -9,6 +9,7 @@ import torch
 
 from model import Transducer
 from optim import Optimizer
+from transcribe import export_all_transcriptions
 from tokenizer import CharTokenizer
 from utils import AttrDict
 from typing import Optional, Union
@@ -257,6 +258,9 @@ def train_model(
         )
 
     logger.info("The training process is OVER!")
+
+    if config.training.export_transcriptions_after_training:
+        export_all_transcriptions(model, config, tokenizer, device, logger)
 
     if tracker is not None:
         tracker.finish()
