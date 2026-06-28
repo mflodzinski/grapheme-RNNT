@@ -26,6 +26,7 @@ model:
         dropout: 0.2
     dec:
         type: lstm
+        embedding_size: 128
         hidden_size: 128
         num_layers: 1
         dropout: 0
@@ -41,7 +42,7 @@ training:
     eval_every: 5
     save_every: 20
     train_cer_samples: 128
-    load_model: info/best.epoch
+    load_model:
     evaluate: True
     early_stopping: True
     early_stopping_patience: 5

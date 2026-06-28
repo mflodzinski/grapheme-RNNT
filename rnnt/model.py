@@ -85,16 +85,20 @@ class Decoder(nn.Module):
         self,
         hidden_size,
         vocab_size,
+        embedding_size,
         output_size,
         num_layers,
         dropout,
     ):
         super(Decoder, self).__init__()
-        self.one_hot_size = vocab_size - 1
-        self.embedding = self.indices2onehot
+        self.embedding = nn.Embedding(
+            num_embeddings=vocab_size,
+            embedding_dim=embedding_size,
+            padding_idx=0,
+        )
 
         self.lstm = nn.LSTM(
-            input_size=vocab_size - 1,
+            input_size=embedding_size,
             hidden_size=hidden_size,
             num_layers=num_layers,
             batch_first=True,
@@ -102,15 +106,8 @@ class Decoder(nn.Module):
         )
         self.proj = nn.Linear(hidden_size, output_size)
 
-    def indices2onehot(self, indices):
-        mask = indices == self.one_hot_size
-        adjusted_indices = torch.where(mask, torch.zeros_like(indices), indices).long()
-        one_hot_batch = F.one_hot(adjusted_indices, self.one_hot_size).float()
-        one_hot_batch[mask] = 0.0
-        return one_hot_batch
-
     def forward(self, inputs, length=None, hidden=None):
-        embed_inputs = self.embedding(inputs)
+        embed_inputs = self.embedding(inputs.long())
 
         if length is not None:
             sorted_seq_lengths, indices = torch.sort(length, descending=True)
@@ -149,6 +146,7 @@ def build_decoder(config, vocab_size):
         return Decoder(
             hidden_size=config.dec.hidden_size,
             vocab_size=vocab_size,
+            embedding_size=config.dec.embedding_size or config.dec.hidden_size,
             output_size=vocab_size,
             num_layers=config.dec.num_layers,
             dropout=config.dec.dropout,

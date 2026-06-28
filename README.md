@@ -13,7 +13,7 @@ Architecture image from [msalhab96/RNN-Transducer](https://github.com/msalhab96/
 - Builds a character-level tokenizer from the training transcripts.
 - Trains an RNN-T model with:
   - bidirectional LSTM encoder,
-  - LSTM prediction network,
+  - embedding-fed LSTM prediction network,
   - Graves-style additive joint distribution over vocabulary-sized encoder and prediction logits,
   - RNN-T loss from `warprnnt_pytorch`.
 - Evaluates recognition quality with character error rate (CER).
