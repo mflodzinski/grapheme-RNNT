@@ -64,7 +64,7 @@ def train(
                 f"AverageLoss:{avg_loss:.5f}, Run Time:{end_step_time - start_step_time:.3f}"
             )
     if tracker is not None:
-        tracker.add_scalar("avg_train_loss", avg_loss, epoch)
+        tracker.add_scalar("loss_train", avg_loss, epoch)
 
     end_epoch_time = time.process_time()
     logger.info(
