@@ -32,6 +32,9 @@ model:
 training:
     seed: 1942
     batch_size: 2
+    bucket_by_duration: True
+    bucket_size_multiplier: 100
+    sort_eval_by_duration: True
     epochs: 100
     max_grad_norm: 20
     show_every: 100

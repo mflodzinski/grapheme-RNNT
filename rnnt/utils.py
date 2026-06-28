@@ -200,6 +200,18 @@ def create_optimizer(model: Transducer, config: AttrDict):
     return Optimizer(model, config)
     
 def prepare_data_loaders(config: AttrDict):
+    bucket_by_duration = (
+        True
+        if config.training.bucket_by_duration is None
+        else bool(config.training.bucket_by_duration)
+    )
+    sort_eval_by_duration = (
+        True
+        if config.training.sort_eval_by_duration is None
+        else bool(config.training.sort_eval_by_duration)
+    )
+    bucket_size_multiplier = config.training.bucket_size_multiplier or 100
+
     tokenizer = CharTokenizer(
         transcript_path=os.path.join(config.data.name, config.data.core_train), 
         batch_size=config.training.batch_size,
@@ -210,15 +222,19 @@ def prepare_data_loaders(config: AttrDict):
         tokenizer,
         batch_size=config.training.batch_size,
         shuffle=True,
+        bucket_by_duration=bucket_by_duration and config.training.batch_size > 1,
+        bucket_size_multiplier=bucket_size_multiplier,
     )
     test_data = build_data_loader(
         os.path.join(config.data.name, config.data.core_test),
         tokenizer,
         batch_size=config.training.batch_size,
+        sort_by_duration=sort_eval_by_duration and config.training.batch_size > 1,
     )
     val_data = build_data_loader(
         os.path.join(config.data.name, config.data.core_val),
         tokenizer,
         batch_size=config.training.batch_size,
+        sort_by_duration=sort_eval_by_duration and config.training.batch_size > 1,
     )
     return train_data, test_data, val_data, tokenizer
