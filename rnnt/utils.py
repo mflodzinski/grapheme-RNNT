@@ -183,6 +183,9 @@ def initialize_model(
 def adjust_learning_rate(
     optimizer: Optimizer, epoch: int, config: AttrDict, logger: Logger
 ):
+    if config.optim.scheduler == "reduce_on_plateau":
+        return
+
     if (
         epoch >= config.optim.begin_to_adjust_lr
         and epoch % config.optim.adjust_every == 0

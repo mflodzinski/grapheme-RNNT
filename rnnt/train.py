@@ -195,6 +195,7 @@ def train_model(
                 tracker,
                 split_name="test",
             )
+            optimizer.step_scheduler(val_loss, logger)
 
             if early_stopping:
                 if is_improved(val_loss, best_val_loss, min_delta):
