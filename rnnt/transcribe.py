@@ -8,11 +8,7 @@ from data import build_data_loader
 
 
 def ids_to_sentence(ids: Iterable[int], tokenizer, special_tokens: set[int]):
-    return "".join(
-        tokenizer.itos[int(token)]
-        for token in ids
-        if int(token) not in special_tokens
-    )
+    return tokenizer.decode(ids, special_tokens=special_tokens)
 
 
 def build_transcription_loader(config, split_path, tokenizer):
@@ -20,6 +16,7 @@ def build_transcription_loader(config, split_path, tokenizer):
         os.path.join(config.data.name, split_path),
         tokenizer,
         batch_size=config.training.batch_size,
+        target_column=config.data.target_column or "transcript",
         shuffle=False,
         bucket_by_duration=False,
         sort_by_duration=False,

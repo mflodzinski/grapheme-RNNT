@@ -1,6 +1,6 @@
 data:
     name: timit
-    exp_name: info
+    exp_name: info_phoneme
     window_type: hamming
     win_size: 400
     hop_size: 160
@@ -13,9 +13,9 @@ data:
     core_train: splits/core_train.csv
     core_test: splits/core_test.csv
     core_val: splits/core_val.csv
-    target_column: transcript
-    tokenizer: char
-    transcriptions_dir: outputs
+    target_column: phonemes
+    tokenizer: token
+    transcriptions_dir: outputs_phoneme
     
 model:
     max_length: 150

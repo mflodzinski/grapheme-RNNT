@@ -11,7 +11,7 @@ import torch
 from model import Transducer
 from optim import Optimizer
 from transcribe import export_all_transcriptions
-from tokenizer import CharTokenizer
+from tokenizer import SequenceTokenizer
 from utils import AttrDict
 from typing import Optional, Union
 import utils
@@ -55,6 +55,7 @@ def train(
     model.train()
     start_epoch_time = time.process_time()
     total_loss = 0
+    total_grad_norm = 0
     batch_steps = len(train_data)
     log_steps = progress_log_steps(batch_steps, configured_logs_per_epoch(config))
 
@@ -79,9 +80,11 @@ def train(
         grad_norm = nn.utils.clip_grad_norm_(
             model.parameters(), config.training.max_grad_norm
         )
+        total_grad_norm += float(grad_norm)
 
         optimizer.step()
         avg_loss = total_loss / (step + 1)
+        avg_grad_norm = total_grad_norm / (step + 1)
 
         if step in log_steps:
             end_step_time = time.process_time()
@@ -93,11 +96,13 @@ def train(
             )
     if tracker is not None:
         tracker.add_scalar("loss/train", avg_loss, epoch)
+        tracker.add_scalar("grad_norm/train", avg_grad_norm, epoch)
 
     end_epoch_time = time.process_time()
     logger.info(
         f"-Training-Epoch:{epoch}, Average Loss: {avg_loss:.5f}, "
-        f"Learning Rate:{optimizer.lr:.6f}, Epoch Time: {end_epoch_time - start_epoch_time:.3f}"
+        f"Average Grad Norm:{avg_grad_norm:.5f}, Learning Rate:{optimizer.lr:.6f}, "
+        f"Epoch Time: {end_epoch_time - start_epoch_time:.3f}"
     )
 
 
@@ -113,6 +118,7 @@ def eval(
     max_samples: Optional[int] = None,
     log_loss: bool = True,
     logs_per_epoch: int = 5,
+    metric_name: str = "CER",
 ):
     model.eval()
     total_loss = 0
@@ -166,7 +172,8 @@ def eval(
                 process = min(process, 100.0)
                 cer = total_dist / total_word * 100
                 logger.info(
-                    f"-{split_name.capitalize()}-Epoch:{epoch}({process:.5f}%), CER: {cer:.5f}%"
+                    f"-{split_name.capitalize()}-Epoch:{epoch}({process:.5f}%), "
+                    f"{metric_name}: {cer:.5f}%"
                 )
 
             if should_stop:
@@ -175,13 +182,14 @@ def eval(
     avg_loss = total_loss / (step + 1)
     cer = total_dist / total_word * 100
     logger.info(
-        f"-{split_name.capitalize()}-Epoch:{epoch:4d}, AverageLoss:{avg_loss:.5f}, AverageCER: {cer:.5f}%"
+        f"-{split_name.capitalize()}-Epoch:{epoch:4d}, AverageLoss:{avg_loss:.5f}, "
+        f"Average{metric_name}: {cer:.5f}%"
     )
 
     if tracker is not None:
         if log_loss:
             tracker.add_scalar(f"loss/{split_name}", avg_loss, epoch)
-        tracker.add_scalar(f"cer/{split_name}", cer, epoch)
+        tracker.add_scalar(f"{metric_name.lower()}/{split_name}", cer, epoch)
 
     return avg_loss, cer
 
@@ -200,7 +208,7 @@ def train_model(
     logger: Logger,
     device: Union[str, torch.device],
     tracker,
-    tokenizer: CharTokenizer,
+    tokenizer: SequenceTokenizer,
 ):
     special_tokens = [
         tokenizer.stoi[tokenizer.special_tokens["pad"]],
@@ -225,6 +233,7 @@ def train_model(
     eval_every = config.training.eval_every or config.training.save_every
     train_cer_samples = config.training.train_cer_samples or 0
     logs_per_epoch = configured_logs_per_epoch(config)
+    metric_name = utils.configured_error_metric(config)
 
     if early_stopping and not config.training.evaluate:
         logger.info("Early stopping is enabled but evaluation is disabled.")
@@ -248,6 +257,7 @@ def train_model(
                     max_samples=train_cer_samples,
                     log_loss=False,
                     logs_per_epoch=logs_per_epoch,
+                    metric_name=metric_name,
                 )
             val_loss, val_cer = eval(
                 epoch,
@@ -259,6 +269,7 @@ def train_model(
                 tracker,
                 split_name="val",
                 logs_per_epoch=logs_per_epoch,
+                metric_name=metric_name,
             )
             eval(
                 epoch,
@@ -270,6 +281,7 @@ def train_model(
                 tracker,
                 split_name="test",
                 logs_per_epoch=logs_per_epoch,
+                metric_name=metric_name,
             )
             optimizer.step_scheduler(val_loss, logger)
 
@@ -281,19 +293,21 @@ def train_model(
                 save_name = os.path.join(config.data.exp_name, "best.epoch")
                 utils.save_model(model, save_name)
                 logger.info(
-                    f"Epoch {epoch} improved validation CER to {val_cer:.5f}%; "
+                    f"Epoch {epoch} improved validation {metric_name} "
+                    f"to {val_cer:.5f}%; "
                     f"best model saved to {save_name}."
                 )
             elif early_stopping:
                 checks_without_improvement += 1
                 logger.info(
-                    f"Validation CER did not improve for "
+                    f"Validation {metric_name} did not improve for "
                     f"{checks_without_improvement}/{patience} checks."
                 )
                 if checks_without_improvement >= patience:
                     logger.info(
                         f"Early stopping at epoch {epoch}. "
-                        f"Best validation CER was {best_val_cer:.5f}% at epoch {best_epoch}."
+                        f"Best validation {metric_name} was {best_val_cer:.5f}% "
+                        f"at epoch {best_epoch}."
                     )
                     stop_training = True
 
@@ -310,7 +324,7 @@ def train_model(
         model.load_state_dict(best_state_dict)
         logger.info(
             f"Restored best model from epoch {best_epoch} "
-            f"with validation CER {best_val_cer:.5f}%."
+            f"with validation {metric_name} {best_val_cer:.5f}%."
         )
 
     logger.info("The training process is OVER!")
@@ -323,7 +337,7 @@ def train_model(
 
 
 def main():
-    CONFIG_PATH = "config/config.yaml"
+    CONFIG_PATH = os.environ.get("RNNT_CONFIG", "config/config.yaml")
     #torch.set_float32_matmul_precision("high")
 
     config = utils.load_config(CONFIG_PATH)
