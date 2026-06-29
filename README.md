@@ -14,14 +14,14 @@ Architecture image from [msalhab96/RNN-Transducer](https://github.com/msalhab96/
 - Trains an RNN-T model with:
   - bidirectional LSTM encoder,
   - embedding-fed LSTM prediction network,
-  - Graves-style additive joint distribution over vocabulary-sized encoder and prediction logits,
+  - learnable joint network over encoder and prediction representations,
   - RNN-T loss from `warprnnt_pytorch`.
 - Evaluates recognition quality with character error rate (CER).
 - Saves checkpoints locally and logs metrics to Weights & Biases.
 
 ## Repository Layout
 
-- `rnnt/model.py` defines the transducer, bidirectional LSTM encoder, prediction network, joint network, loss, and greedy recognizer.
+- `rnnt/model.py` defines the transducer, bidirectional LSTM encoder, prediction network, joint network, loss, and greedy/beam recognizers.
 - `rnnt/data.py` defines the PyTorch dataset, dataloaders, and batch padding.
 - `rnnt/tokenizer.py` builds the grapheme vocabulary.
 - `rnnt/train.py` runs training, validation, checkpointing, and logging.
@@ -90,12 +90,16 @@ Training outputs are written to `info/` by default:
 - `info/*.epoch` for checkpoints.
 
 When `training.export_transcriptions_after_training` is enabled, training also
-decodes the final restored model and writes tab-separated prediction/target
-files to:
+decodes the final restored model with each method in
+`training.export_decode_methods` and writes tab-separated prediction/target
+files to `timit/outputs/`:
 
-- `timit/outputs/transcriptions_train.tsv`
-- `timit/outputs/transcriptions_val.tsv`
-- `timit/outputs/transcriptions_test.tsv`
+- `timit/outputs/transcriptions_train_greedy.tsv`
+- `timit/outputs/transcriptions_val_greedy.tsv`
+- `timit/outputs/transcriptions_test_greedy.tsv`
+- `timit/outputs/transcriptions_train_beam.tsv`
+- `timit/outputs/transcriptions_val_beam.tsv`
+- `timit/outputs/transcriptions_test_beam.tsv`
 
 Metrics are logged to Weights & Biases when `wandb.enabled` is true in `config/config.yaml`.
 Authenticate once before training:
@@ -117,9 +121,12 @@ The decoded and reference transcripts are written as TSV files with
 `sample_id`, `prediction`, and `target` columns:
 
 ```text
-timit/outputs/transcriptions_train.tsv
-timit/outputs/transcriptions_val.tsv
-timit/outputs/transcriptions_test.tsv
+timit/outputs/transcriptions_train_greedy.tsv
+timit/outputs/transcriptions_val_greedy.tsv
+timit/outputs/transcriptions_test_greedy.tsv
+timit/outputs/transcriptions_train_beam.tsv
+timit/outputs/transcriptions_val_beam.tsv
+timit/outputs/transcriptions_test_beam.tsv
 ```
 
 ## Notes

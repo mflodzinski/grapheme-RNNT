@@ -14,3 +14,4 @@ slurm_*.err
 timit/raw/
 timit/features/
 timit/data/
+timit/outputs

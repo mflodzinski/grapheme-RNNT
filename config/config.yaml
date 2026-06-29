@@ -13,9 +13,7 @@ data:
     core_train: splits/core_train.csv
     core_test: splits/core_test.csv
     core_val: splits/core_val.csv
-    transcriptions_train: outputs/transcriptions_train.tsv
-    transcriptions_val: outputs/transcriptions_val.tsv
-    transcriptions_test: outputs/transcriptions_test.tsv
+    transcriptions_dir: outputs
     
 model:
     max_length: 150
@@ -32,6 +30,14 @@ model:
         hidden_size: 128
         num_layers: 1
         dropout: 0
+    joint:
+        hidden_size: 128
+        activation: tanh
+        dropout: 0.0
+    decode:
+        method: beam
+        beam_width: 5
+        max_symbols_per_step: 5
 training:
     seed: 1942
     batch_size: 2
@@ -40,7 +46,7 @@ training:
     sort_eval_by_duration: True
     epochs: 100
     max_grad_norm: 20
-    show_every: 100
+    progress_logs_per_epoch: 5
     eval_every: 5
     save_every: 20
     train_cer_samples: 256
@@ -48,9 +54,12 @@ training:
     evaluate: True
     early_stopping: True
     early_stopping_patience: 5
-    early_stopping_min_delta: 0.0
+    early_stopping_min_cer_delta: 0.0
     restore_best_model: True
     export_transcriptions_after_training: True
+    export_decode_methods:
+        - greedy
+        - beam
 
 wandb:
     enabled: True

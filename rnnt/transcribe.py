@@ -32,6 +32,7 @@ def export_split_transcriptions(
     tokenizer,
     output_file,
     device,
+    decode_method=None,
 ):
     special_tokens = {
         tokenizer.stoi[tokenizer.special_tokens["pad"]],
@@ -52,7 +53,11 @@ def export_split_transcriptions(
                 inputs = inputs.to(device)
                 inputs_length = inputs_length.to(device)
 
-                predictions = model.recognize(inputs, inputs_length)
+                predictions = model.recognize(
+                    inputs,
+                    inputs_length,
+                    decode_method=decode_method,
+                )
 
                 for prediction, target, target_length in zip(
                     predictions, targets, targets_length
@@ -70,24 +75,55 @@ def export_split_transcriptions(
     return sample_id
 
 
+def configured_export_methods(config):
+    methods = config.training.export_decode_methods
+    if methods is None:
+        return ["greedy", "beam"]
+    return [str(method).lower() for method in methods]
+
+
+def transcription_output_file(config, split_name, decode_method):
+    output_dir = config.data.transcriptions_dir
+    if output_dir is None:
+        transcriptions_val = config.data.transcriptions_val
+        output_dir = (
+            os.path.dirname(transcriptions_val)
+            if transcriptions_val is not None
+            else "outputs"
+        )
+    output_path = os.path.join(
+        output_dir,
+        f"transcriptions_{split_name}_{decode_method}.tsv",
+    )
+    return os.path.join(config.data.name, output_path)
+
+
 def export_all_transcriptions(model, config, tokenizer, device, logger=None):
     split_configs = [
-        ("train", config.data.core_train, config.data.transcriptions_train),
-        ("val", config.data.core_val, config.data.transcriptions_val),
-        ("test", config.data.core_test, config.data.transcriptions_test),
+        ("train", config.data.core_train),
+        ("val", config.data.core_val),
+        ("test", config.data.core_test),
     ]
+    decode_methods = configured_export_methods(config)
 
-    for split_name, split_path, output_path in split_configs:
-        output_file = os.path.join(config.data.name, output_path)
+    for split_name, split_path in split_configs:
         data_loader = build_transcription_loader(config, split_path, tokenizer)
-        num_samples = export_split_transcriptions(
-            model=model,
-            data_loader=data_loader,
-            tokenizer=tokenizer,
-            output_file=output_file,
-            device=device,
-        )
-        if logger is not None:
-            logger.info(
-                f"Wrote {num_samples} {split_name} transcriptions to {output_file}."
+        for decode_method in decode_methods:
+            output_file = transcription_output_file(
+                config,
+                split_name,
+                decode_method,
             )
+            num_samples = export_split_transcriptions(
+                model=model,
+                data_loader=data_loader,
+                tokenizer=tokenizer,
+                output_file=output_file,
+                device=device,
+                decode_method=decode_method,
+            )
+            if logger is not None:
+                logger.info(
+                    f"Wrote {num_samples} {split_name} {decode_method} "
+                    f"transcriptions to {output_file}."
+                )
