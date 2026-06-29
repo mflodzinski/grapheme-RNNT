@@ -31,18 +31,21 @@ def read_phonemes(path: Path) -> str:
     return " ".join(phones)
 
 
-def add_phoneme_column(timit_root: Path, split_path: str, column: str):
+def add_phoneme_column(timit_root: Path, split_path: str, column: str, force: bool):
     csv_path = timit_root / split_path
     df = pd.read_csv(csv_path)
     if "audio_path" not in df:
         raise ValueError(f"{csv_path} must contain an `audio_path` column.")
+
+    if not force and column in df and not df[column].isna().any():
+        return csv_path, len(df), False
 
     df[column] = [
         read_phonemes(phoneme_path_for_audio(audio_path))
         for audio_path in df["audio_path"]
     ]
     df.to_csv(csv_path, index=False)
-    return csv_path, len(df)
+    return csv_path, len(df), True
 
 
 def main():
@@ -52,15 +55,24 @@ def main():
     parser.add_argument("--timit-root", default="timit", type=Path)
     parser.add_argument("--column", default="phonemes")
     parser.add_argument("--splits", nargs="*", default=DEFAULT_SPLITS)
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Regenerate the phoneme column even if it is already complete.",
+    )
     args = parser.parse_args()
 
     for split_path in args.splits:
-        csv_path, rows = add_phoneme_column(
+        csv_path, rows, changed = add_phoneme_column(
             timit_root=args.timit_root,
             split_path=split_path,
             column=args.column,
+            force=args.force,
         )
-        print(f"Wrote {rows} rows with `{args.column}` to {csv_path}")
+        if changed:
+            print(f"Wrote {rows} rows with `{args.column}` to {csv_path}")
+        else:
+            print(f"{csv_path} already has complete `{args.column}` targets")
 
 
 if __name__ == "__main__":

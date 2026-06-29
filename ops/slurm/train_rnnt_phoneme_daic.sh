@@ -65,5 +65,6 @@ if torch.cuda.is_available():
     print(f"gpu: {torch.cuda.get_device_name(0)}")
 PY
 
+# No-op when the split CSVs already contain complete `phonemes` targets.
 python timit/add_phonemes_to_splits.py
 python rnnt/train.py
