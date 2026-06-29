@@ -97,9 +97,6 @@ files to `timit/outputs/`:
 - `timit/outputs/transcriptions_train_greedy.tsv`
 - `timit/outputs/transcriptions_val_greedy.tsv`
 - `timit/outputs/transcriptions_test_greedy.tsv`
-- `timit/outputs/transcriptions_train_beam.tsv`
-- `timit/outputs/transcriptions_val_beam.tsv`
-- `timit/outputs/transcriptions_test_beam.tsv`
 
 Metrics are logged to Weights & Biases when `wandb.enabled` is true in `config/config.yaml`.
 Authenticate once before training:
@@ -124,9 +121,6 @@ The decoded and reference transcripts are written as TSV files with
 timit/outputs/transcriptions_train_greedy.tsv
 timit/outputs/transcriptions_val_greedy.tsv
 timit/outputs/transcriptions_test_greedy.tsv
-timit/outputs/transcriptions_train_beam.tsv
-timit/outputs/transcriptions_val_beam.tsv
-timit/outputs/transcriptions_test_beam.tsv
 ```
 
 ## Notes
