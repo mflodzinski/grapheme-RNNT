@@ -42,7 +42,6 @@ model:
     decode:
         method: greedy
         beam_width: 5
-        max_symbols_per_step: 5
 training:
     seed: 1942
     batch_size: 1

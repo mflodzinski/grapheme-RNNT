@@ -1,3 +1,4 @@
+import heapq
 import math
 
 import torch
@@ -251,6 +252,8 @@ class Transducer(nn.Module):
         super(Transducer, self).__init__()
         self.config = config
         self.device = device
+        self.vocab_size = vocab_size
+        self.pad_idx = pad_idx
         joint_size = config.joint.hidden_size or vocab_size
         self.encoder = build_encoder(config, joint_size)
         self.decoder = build_decoder(
@@ -333,7 +336,11 @@ class Transducer(nn.Module):
     def decode_sequence_beam(self, encoded_sequence, input_length):
         decode_config = self.config.decode
         beam_width = max(1, decode_config.beam_width or 5)
-        max_symbols_per_step = max(1, decode_config.max_symbols_per_step or 5)
+        label_tokens = [
+            token
+            for token in range(self.vocab_size)
+            if token != self.blank and token != self.pad_idx
+        ]
         zero_token = torch.tensor([self.blank], device=self.device)
         initial_dec_state, initial_hidden = self.decoder(zero_token)
         beam = [
@@ -347,57 +354,70 @@ class Transducer(nn.Module):
 
         for t in range(input_length):
             completed = []
-            active = beam
+            active = []
+            active_counter = 0
+            for hyp in beam:
+                heapq.heappush(active, (-hyp["score"], active_counter, hyp))
+                active_counter += 1
 
-            for _ in range(max_symbols_per_step):
-                expanded = []
-
-                for hyp in active:
-                    logits = self.joint(
-                        encoded_sequence[t].view(-1),
-                        hyp["dec_state"].view(-1),
-                    )
-                    log_probs = F.log_softmax(logits, dim=0)
-
-                    completed.append(
-                        {
-                            "tokens": hyp["tokens"],
-                            "score": hyp["score"] + float(log_probs[self.blank].item()),
-                            "dec_state": hyp["dec_state"],
-                            "hidden": hyp["hidden"],
-                        }
-                    )
-
-                    if len(hyp["tokens"]) >= self.config.max_length:
-                        continue
-
-                    top_scores, top_tokens = torch.topk(
-                        log_probs,
-                        k=min(beam_width + 1, log_probs.numel()),
-                    )
-                    for token_score, token in zip(top_scores, top_tokens):
-                        token = int(token.item())
-                        if token == self.blank:
-                            continue
-
-                        token_tensor = torch.tensor([token], device=self.device)
-                        dec_state, hidden = self.decoder(
-                            token_tensor,
-                            hidden=hyp["hidden"],
-                        )
-                        expanded.append(
-                            {
-                                "tokens": hyp["tokens"] + (token,),
-                                "score": hyp["score"] + float(token_score.item()),
-                                "dec_state": dec_state.view(-1),
-                                "hidden": hidden,
-                            }
-                        )
-
-                active = prune_hypotheses(expanded, beam_width)
-                if not active:
+            while active:
+                best_active_score = -active[0][0]
+                stronger_completed = sum(
+                    hyp["score"] > best_active_score for hyp in completed
+                )
+                if stronger_completed >= beam_width:
                     break
 
-            beam = prune_hypotheses(completed, beam_width)
+                _, _, hyp = heapq.heappop(active)
+                logits = self.joint(
+                    encoded_sequence[t].view(-1),
+                    hyp["dec_state"].view(-1),
+                )
+                log_probs = F.log_softmax(logits, dim=0)
 
-        return list(beam[0]["tokens"])
+                completed.append(
+                    {
+                        "tokens": hyp["tokens"],
+                        "score": hyp["score"] + float(log_probs[self.blank].item()),
+                        "dec_state": hyp["dec_state"],
+                        "hidden": hyp["hidden"],
+                    }
+                )
+
+                if len(hyp["tokens"]) >= self.config.max_length:
+                    continue
+
+                for token in label_tokens:
+                    token_tensor = torch.tensor([token], device=self.device)
+                    dec_state, hidden = self.decoder(
+                        token_tensor,
+                        hidden=hyp["hidden"],
+                    )
+                    heapq.heappush(
+                        active,
+                        (
+                            -hyp["score"] - float(log_probs[token].item()),
+                            active_counter,
+                            {
+                                "tokens": hyp["tokens"] + (token,),
+                                "score": hyp["score"] + float(log_probs[token].item()),
+                                "dec_state": dec_state.view(-1),
+                                "hidden": hidden,
+                            },
+                        ),
+                    )
+                    active_counter += 1
+
+            if completed:
+                beam = prune_hypotheses(completed, beam_width)
+            else:
+                beam = prune_hypotheses(
+                    [heap_item[2] for heap_item in active],
+                    beam_width,
+                )
+
+        best_hypothesis = max(
+            beam,
+            key=lambda hyp: hyp["score"] / max(1, len(hyp["tokens"])),
+        )
+        return list(best_hypothesis["tokens"])
