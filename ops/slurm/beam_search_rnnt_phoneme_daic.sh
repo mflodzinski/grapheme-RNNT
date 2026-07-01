@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --partition=general
 #SBATCH --qos=short
-#SBATCH --time=02:00:00
+#SBATCH --time=03:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=4GB
@@ -20,7 +20,7 @@ VENV_DIR="${VENV_DIR:-.venv-daic}"
 BASE_CONFIG="${RNNT_CONFIG:-config/config_phoneme.yaml}"
 RNNT_MODEL="${RNNT_MODEL:-info_phoneme/best.epoch}"
 DECODE_OUTPUT_DIR="${DECODE_OUTPUT_DIR:-outputs_phoneme_beam}"
-BEAM_WIDTH="${BEAM_WIDTH:-4000}"
+BEAM_WIDTH="${BEAM_WIDTH:-500}"
 
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
 export MKL_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"

@@ -1,6 +1,6 @@
 # RNN Transducer for TIMIT Grapheme ASR
 
-This project implements an RNN Transducer (RNN-T) speech-to-text system in PyTorch for the TIMIT dataset. It follows the encoder, prediction network, and joint network design from the original RNN-T paper, but trains directly on graphemes instead of phonemes. The target vocabulary is built from transcript characters, so the model predicts written text characters end to end from acoustic features.
+This project implements an RNN Transducer (RNN-T) speech-to-text system in PyTorch for the TIMIT dataset. It follows the encoder, prediction network, and additive joint design from the original RNN-T paper, but trains directly on graphemes instead of phonemes. The target vocabulary is built from transcript characters, so the model predicts written text characters end to end from acoustic features.
 
 ![RNN-T architecture](https://user-images.githubusercontent.com/61272193/156832630-ad0c7d31-b262-470e-9b88-77088adf90ff.png)
 
@@ -14,14 +14,14 @@ Architecture image from [msalhab96/RNN-Transducer](https://github.com/msalhab96/
 - Trains an RNN-T model with:
   - bidirectional LSTM encoder,
   - embedding-fed LSTM prediction network,
-  - learnable joint network over encoder and prediction representations,
+  - parameter-free additive joint over encoder and prediction representations,
   - RNN-T loss from `warprnnt_pytorch`.
 - Evaluates recognition quality with character error rate (CER).
 - Saves checkpoints locally and logs metrics to Weights & Biases.
 
 ## Repository Layout
 
-- `rnnt/model.py` defines the transducer, bidirectional LSTM encoder, prediction network, joint network, loss, and greedy/beam recognizers.
+- `rnnt/model.py` defines the transducer, bidirectional LSTM encoder, prediction network, additive joint, loss, and greedy/beam recognizers.
 - `rnnt/data.py` defines the PyTorch dataset, dataloaders, and batch padding.
 - `rnnt/tokenizer.py` builds the grapheme vocabulary.
 - `rnnt/train.py` runs training, validation, checkpointing, and logging.

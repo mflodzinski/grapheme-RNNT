@@ -32,11 +32,6 @@ model:
         hidden_size: 128
         num_layers: 1
         dropout: 0
-    joint:
-        type: feedforward
-        hidden_size: 128
-        activation: tanh
-        dropout: 0.0
     decode:
         method: greedy
         beam_width: 5

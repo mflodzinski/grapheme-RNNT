@@ -15,7 +15,6 @@ data:
     core_val: splits/core_val.csv
     target_column: phonemes
     tokenizer: token
-    # Applies TIMIT 61-to-39 merges, maps silence/closures to sil, and drops q.
     target_normalization: timit_39
     transcriptions_dir: outputs_phoneme
     
@@ -27,17 +26,12 @@ model:
         hidden_size: 128
         num_layers: 1
         bidirectional: True
-        dropout: 0.1
+        dropout: 0.0
     dec:
         type: lstm
         embedding_size: 39
         hidden_size: 128
         num_layers: 1
-        dropout: 0
-    joint:
-        type: additive
-        hidden_size: 40
-        activation:
         dropout: 0.0
     decode:
         method: greedy

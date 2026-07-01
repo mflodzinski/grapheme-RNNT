@@ -113,7 +113,9 @@ def log_model_parameters(model: Transducer, logger: Logger):
     logger.info(f"# the number of parameters in the Model: {n_params}")
     logger.info(f"# the number of parameters in the Encoder: {enc}")
     logger.info(f"# the number of parameters in the Decoder: {dec}")
-    logger.info(f"# the number of parameters in the JointNet: {n_params - enc - dec}")
+    logger.info(
+        f"# the number of parameters in the Additive Joint: {n_params - enc - dec}"
+    )
 
 
 def to_plain_dict(value: Any):

@@ -159,32 +159,10 @@ def build_decoder(config, vocab_size, output_size, padding_idx=None):
     raise NotImplementedError
 
 
-class JointNet(nn.Module):
-    def __init__(self, input_size, vocab_size, activation="tanh", dropout=0.0):
-        super(JointNet, self).__init__()
-        self.activation = build_activation(activation)
-        self.dropout = nn.Dropout(dropout)
-        self.output = nn.Linear(input_size, vocab_size)
-
-    def forward(self, enc_state, dec_state):
-        if enc_state.dim() == 3 and dec_state.dim() == 3:
-            dec_state = dec_state.unsqueeze(1)
-            enc_state = enc_state.unsqueeze(2)
-        else:
-            assert enc_state.dim() == dec_state.dim()
-
-        joint_state = self.activation(enc_state + dec_state)
-        return self.output(self.dropout(joint_state))
-
-
 class AdditiveJointNet(nn.Module):
-    def __init__(self, input_size, vocab_size):
+    def __init__(self, vocab_size):
         super(AdditiveJointNet, self).__init__()
-        if input_size != vocab_size:
-            raise ValueError(
-                "Additive joint requires encoder/decoder output size to match "
-                f"vocab size, got input_size={input_size}, vocab_size={vocab_size}."
-            )
+        self.vocab_size = vocab_size
 
     def forward(self, enc_state, dec_state):
         if enc_state.dim() == 3 and dec_state.dim() == 3:
@@ -194,31 +172,6 @@ class AdditiveJointNet(nn.Module):
             assert enc_state.dim() == dec_state.dim()
 
         return enc_state + dec_state
-
-
-def build_joint(config, input_size, vocab_size):
-    joint_type = (config.joint.type or "feedforward").lower()
-    if joint_type == "additive":
-        return AdditiveJointNet(input_size=input_size, vocab_size=vocab_size)
-    if joint_type == "feedforward":
-        return JointNet(
-            input_size=input_size,
-            vocab_size=vocab_size,
-            activation=config.joint.activation,
-            dropout=config.joint.dropout or 0.0,
-        )
-    raise ValueError(f"Unsupported joint type: {joint_type}")
-
-
-def build_activation(name):
-    name = (name or "tanh").lower()
-    if name == "tanh":
-        return nn.Tanh()
-    if name == "relu":
-        return nn.ReLU()
-    if name == "gelu":
-        return nn.GELU()
-    raise ValueError(f"Unsupported joint activation: {name}")
 
 
 def logaddexp(a, b):
@@ -254,7 +207,7 @@ class Transducer(nn.Module):
         self.device = device
         self.vocab_size = vocab_size
         self.pad_idx = pad_idx
-        joint_size = config.joint.hidden_size or vocab_size
+        joint_size = vocab_size
         self.encoder = build_encoder(config, joint_size)
         self.decoder = build_decoder(
             config,
@@ -263,7 +216,7 @@ class Transducer(nn.Module):
             padding_idx=pad_idx,
         )
 
-        self.joint = build_joint(config, input_size=joint_size, vocab_size=vocab_size)
+        self.joint = AdditiveJointNet(vocab_size=vocab_size)
         self.blank = vocab_size - 1
         self.crit = RNNTLossAdapter(blank=self.blank)
 
