@@ -107,6 +107,12 @@ import csv
 import os
 from pathlib import Path
 
+try:
+    from tqdm.auto import tqdm
+except ImportError:
+    def tqdm(iterable, **kwargs):
+        return iterable
+
 
 def edit_distance(left, right):
     prev = list(range(len(right) + 1))
@@ -136,7 +142,7 @@ for split in ("train", "val", "test"):
 
     with transcription_file.open(newline="") as file:
         reader = csv.DictReader(file, delimiter="\t")
-        for row in reader:
+        for row in tqdm(reader, desc=f"{split} PER", unit="utt", dynamic_ncols=True):
             prediction = row["prediction"].split()
             target = row["target"].split()
             total_edits += edit_distance(prediction, target)

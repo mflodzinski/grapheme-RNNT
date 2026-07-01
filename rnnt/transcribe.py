@@ -6,6 +6,12 @@ import torch
 
 from data import build_data_loader
 
+try:
+    from tqdm.auto import tqdm
+except ImportError:
+    def tqdm(iterable, **kwargs):
+        return iterable
+
 
 def ids_to_sentence(ids: Iterable[int], tokenizer, special_tokens: set[int]):
     return tokenizer.decode(ids, special_tokens=special_tokens)
@@ -30,6 +36,7 @@ def export_split_transcriptions(
     output_file,
     device,
     decode_method=None,
+    split_name=None,
 ):
     special_tokens = {
         tokenizer.stoi[token]
@@ -46,7 +53,14 @@ def export_split_transcriptions(
         writer.writerow(["sample_id", "prediction", "target"])
 
         with torch.no_grad():
-            for inputs, inputs_length, targets, targets_length in data_loader:
+            progress = tqdm(
+                data_loader,
+                total=len(data_loader),
+                desc=f"{split_name or 'split'} {decode_method or 'decode'}",
+                unit="batch",
+                dynamic_ncols=True,
+            )
+            for inputs, inputs_length, targets, targets_length in progress:
                 inputs = inputs.to(device)
                 inputs_length = inputs_length.to(device)
 
@@ -118,6 +132,7 @@ def export_all_transcriptions(model, config, tokenizer, device, logger=None):
                 output_file=output_file,
                 device=device,
                 decode_method=decode_method,
+                split_name=split_name,
             )
             if logger is not None:
                 logger.info(
