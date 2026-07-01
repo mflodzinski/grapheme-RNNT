@@ -91,12 +91,13 @@ class Decoder(nn.Module):
         output_size,
         num_layers,
         dropout,
+        padding_idx=None,
     ):
         super(Decoder, self).__init__()
         self.embedding = nn.Embedding(
             num_embeddings=vocab_size,
             embedding_dim=embedding_size,
-            padding_idx=0,
+            padding_idx=padding_idx,
         )
 
         self.lstm = nn.LSTM(
@@ -143,7 +144,7 @@ def build_encoder(config, output_size):
     raise NotImplementedError
 
 
-def build_decoder(config, vocab_size, output_size):
+def build_decoder(config, vocab_size, output_size, padding_idx=None):
     if config.dec.type == "lstm":
         return Decoder(
             hidden_size=config.dec.hidden_size,
@@ -152,6 +153,7 @@ def build_decoder(config, vocab_size, output_size):
             output_size=output_size,
             num_layers=config.dec.num_layers,
             dropout=config.dec.dropout,
+            padding_idx=padding_idx,
         )
     raise NotImplementedError
 
@@ -172,6 +174,39 @@ class JointNet(nn.Module):
 
         joint_state = self.activation(enc_state + dec_state)
         return self.output(self.dropout(joint_state))
+
+
+class AdditiveJointNet(nn.Module):
+    def __init__(self, input_size, vocab_size):
+        super(AdditiveJointNet, self).__init__()
+        if input_size != vocab_size:
+            raise ValueError(
+                "Additive joint requires encoder/decoder output size to match "
+                f"vocab size, got input_size={input_size}, vocab_size={vocab_size}."
+            )
+
+    def forward(self, enc_state, dec_state):
+        if enc_state.dim() == 3 and dec_state.dim() == 3:
+            dec_state = dec_state.unsqueeze(1)
+            enc_state = enc_state.unsqueeze(2)
+        else:
+            assert enc_state.dim() == dec_state.dim()
+
+        return enc_state + dec_state
+
+
+def build_joint(config, input_size, vocab_size):
+    joint_type = (config.joint.type or "feedforward").lower()
+    if joint_type == "additive":
+        return AdditiveJointNet(input_size=input_size, vocab_size=vocab_size)
+    if joint_type == "feedforward":
+        return JointNet(
+            input_size=input_size,
+            vocab_size=vocab_size,
+            activation=config.joint.activation,
+            dropout=config.joint.dropout or 0.0,
+        )
+    raise ValueError(f"Unsupported joint type: {joint_type}")
 
 
 def build_activation(name):
@@ -212,20 +247,20 @@ def prune_hypotheses(hypotheses, beam_width):
 
 
 class Transducer(nn.Module):
-    def __init__(self, config, vocab_size, device):
+    def __init__(self, config, vocab_size, device, pad_idx=None):
         super(Transducer, self).__init__()
         self.config = config
         self.device = device
         joint_size = config.joint.hidden_size or vocab_size
         self.encoder = build_encoder(config, joint_size)
-        self.decoder = build_decoder(config, vocab_size, joint_size)
-
-        self.joint = JointNet(
-            input_size=joint_size,
-            vocab_size=vocab_size,
-            activation=config.joint.activation,
-            dropout=config.joint.dropout or 0.0,
+        self.decoder = build_decoder(
+            config,
+            vocab_size,
+            joint_size,
+            padding_idx=pad_idx,
         )
+
+        self.joint = build_joint(config, input_size=joint_size, vocab_size=vocab_size)
         self.blank = vocab_size - 1
         self.crit = RNNTLossAdapter(blank=self.blank)
 

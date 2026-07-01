@@ -25,18 +25,19 @@ model:
     enc:
         type: lstm
         hidden_size: 128
-        num_layers: 2
+        num_layers: 1
         bidirectional: True
-        dropout: 0.2
+        dropout: 0.1
     dec:
         type: lstm
-        embedding_size: 128
+        embedding_size: 39
         hidden_size: 128
         num_layers: 1
         dropout: 0
     joint:
-        hidden_size: 128
-        activation: tanh
+        type: additive
+        hidden_size: 40
+        activation:
         dropout: 0.0
     decode:
         method: greedy
@@ -44,12 +45,13 @@ model:
         max_symbols_per_step: 5
 training:
     seed: 1942
-    batch_size: 2
+    batch_size: 1
     bucket_by_duration: True
     bucket_size_multiplier: 100
     sort_eval_by_duration: True
     epochs: 100
-    max_grad_norm: 20
+    max_grad_norm: 100
+    weight_noise_std: 0.075
     progress_logs_per_epoch: 5
     eval_every: 5
     save_every: 20

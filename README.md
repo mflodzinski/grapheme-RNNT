@@ -127,9 +127,11 @@ timit/outputs/transcriptions_test_greedy.tsv
 
 The original RNN-T paper trained the model on phoneme sequences for TIMIT. This project instead uses the text transcripts directly and optimizes over grapheme targets, making the output a character-level speech-to-text system rather than a phoneme recognizer.
 
-The tokenizer treats the literal space character as a normal grapheme. It also adds `"<pad>"` for batching and `"<blank>"` for the RNN-T null transition. `"<blank>"` is prepended only to the prediction-network input history and is not stored as a transcript target.
+The tokenizer treats the literal space character as a normal grapheme. It adds `"<blank>"` for the RNN-T null transition. It omits a `"<pad>"` output class for online training with `batch_size: 1`, and adds `"<pad>"` only when `batch_size > 1` requires padded target batches. `"<blank>"` is prepended only to the prediction-network input history and is not stored as a transcript target.
 
 For phoneme experiments, `config/config_phoneme.yaml` enables `data.target_normalization: timit_39`. This applies the standard TIMIT 61-to-39 phone merges, maps silence and closure labels such as `h#`, `pau`, `epi`, `tcl`, and `kcl` to `sil`, and drops glottal-stop `q`. The resulting emitted vocabulary has 39 phones including `sil`. The normalization is applied at tokenizer/data-loader time before vocabulary construction, training, evaluation, and transcription export; the raw `timit/splits/*.csv` files are not rewritten.
+
+The phoneme config also uses paper-style recurrent sizes: 26 acoustic inputs, online training with batch size 1, one bidirectional size-128 LSTM transcription layer with 40-dimensional transcription vectors, one size-128 LSTM prediction layer fed by 39-dimensional label embeddings, and an additive joint that sums transcription and prediction logits directly without a tanh layer. During training, `training.weight_noise_std: 0.075` injects Gaussian noise into weight matrices for each forward/backward pass and restores the clean weights before the optimizer step.
 
 Checkpoints produced by older versions of this repository are not compatible with the current model shapes.
 

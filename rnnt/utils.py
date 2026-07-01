@@ -189,7 +189,12 @@ def load_model_state(model: Transducer, checkpoint: dict):
 def initialize_model(
     config: AttrDict, vocab_size: int, device: Union[str, torch.device]
 ):
-    model = Transducer(config.model, vocab_size, device)
+    pad_idx = (
+        0
+        if config.training.batch_size and config.training.batch_size > 1
+        else None
+    )
+    model = Transducer(config.model, vocab_size, device, pad_idx=pad_idx)
     if config.training.load_model:
         checkpoint = torch.load(config.training.load_model, map_location=device)
         load_model_state(model, checkpoint)

@@ -42,6 +42,35 @@ def log_learning_rate(epoch, optimizer, logger, tracker=None):
         tracker.add_scalar("learning_rate", optimizer.lr, epoch)
 
 
+def configured_weight_noise_std(config: AttrDict):
+    value = config.training.weight_noise_std
+    return 0.0 if value is None else float(value)
+
+
+def add_gaussian_weight_noise(model: nn.Module, std: float):
+    if std <= 0:
+        return []
+
+    noisy_params = []
+    with torch.no_grad():
+        for param in model.parameters():
+            if not param.requires_grad or param.dim() < 2:
+                continue
+            noise = torch.empty_like(param).normal_(mean=0.0, std=std)
+            param.add_(noise)
+            noisy_params.append((param, noise))
+    return noisy_params
+
+
+def remove_gaussian_weight_noise(noisy_params):
+    if not noisy_params:
+        return
+
+    with torch.no_grad():
+        for param, noise in noisy_params:
+            param.sub_(noise)
+
+
 def train(
     epoch: int,
     config: AttrDict,
@@ -58,6 +87,7 @@ def train(
     total_grad_norm = 0
     batch_steps = len(train_data)
     log_steps = progress_log_steps(batch_steps, configured_logs_per_epoch(config))
+    weight_noise_std = configured_weight_noise_std(config)
 
     optimizer.epoch()
 
@@ -72,9 +102,13 @@ def train(
         optimizer.zero_grad()
         start_step_time = time.process_time()
 
-        loss = model(inputs, inputs_length, targets, targets_length)
-        loss = loss.mean()
-        loss.backward()
+        noisy_params = add_gaussian_weight_noise(model, weight_noise_std)
+        try:
+            loss = model(inputs, inputs_length, targets, targets_length)
+            loss = loss.mean()
+            loss.backward()
+        finally:
+            remove_gaussian_weight_noise(noisy_params)
         total_loss += loss.item()
 
         grad_norm = nn.utils.clip_grad_norm_(
@@ -211,8 +245,8 @@ def train_model(
     tokenizer: SequenceTokenizer,
 ):
     special_tokens = [
-        tokenizer.stoi[tokenizer.special_tokens["pad"]],
-        tokenizer.stoi[tokenizer.special_tokens["blank"]],
+        tokenizer.stoi[token]
+        for token in tokenizer.special_tokens.values()
     ]
     early_stopping = bool(config.training.early_stopping)
     patience = config.training.early_stopping_patience or 0

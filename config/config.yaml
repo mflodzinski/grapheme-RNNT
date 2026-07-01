@@ -33,6 +33,7 @@ model:
         num_layers: 1
         dropout: 0
     joint:
+        type: feedforward
         hidden_size: 128
         activation: tanh
         dropout: 0.0
@@ -42,7 +43,7 @@ model:
         max_symbols_per_step: 5
 training:
     seed: 1942
-    batch_size: 2
+    batch_size: 1
     bucket_by_duration: True
     bucket_size_multiplier: 100
     sort_eval_by_duration: True

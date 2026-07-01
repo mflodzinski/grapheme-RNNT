@@ -32,8 +32,8 @@ def export_split_transcriptions(
     decode_method=None,
 ):
     special_tokens = {
-        tokenizer.stoi[tokenizer.special_tokens["pad"]],
-        tokenizer.stoi[tokenizer.special_tokens["blank"]],
+        tokenizer.stoi[token]
+        for token in tokenizer.special_tokens.values()
     }
     output_dir = os.path.dirname(output_file)
     if output_dir:

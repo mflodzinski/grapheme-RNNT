@@ -87,11 +87,11 @@ class SequenceTokenizer:
         mode="char",
         target_normalization=None,
     ):
-        self.special_tokens = {
-            "pad": "<pad>",
-            "blank": "<blank>",
-        }
         self.batch_size = batch_size
+        self.special_tokens = {}
+        if self.batch_size > 1:
+            self.special_tokens["pad"] = "<pad>"
+        self.special_tokens["blank"] = "<blank>"
         self.target_column = target_column
         self.mode = mode
         self.target_normalization = target_normalization
@@ -121,7 +121,9 @@ class SequenceTokenizer:
                 for token in self.tokenize(str(value))
             }
         )
-        vocab = [self.special_tokens["pad"]] + vocab + [self.special_tokens["blank"]]
+        if "pad" in self.special_tokens:
+            vocab = [self.special_tokens["pad"]] + vocab
+        vocab = vocab + [self.special_tokens["blank"]]
         return vocab
 
     def tokenize(self, value):

@@ -57,15 +57,15 @@ class TimitDataset(Dataset):
 
 
 class TransducerCollate:
-    def __init__(self, pad_idx):
-        self.pad_idx = pad_idx
+    def __init__(self, target_fill_idx):
+        self.target_fill_idx = target_fill_idx
 
     def __call__(self, batch):
         features, feature_lengths, targets, target_lengths = zip(*batch)
         return (
             pad_sequence(features, batch_first=True),
             torch.stack(feature_lengths),
-            pad_sequence(targets, batch_first=True, padding_value=self.pad_idx),
+            pad_sequence(targets, batch_first=True, padding_value=self.target_fill_idx),
             torch.stack(target_lengths),
         )
 
@@ -127,7 +127,8 @@ def build_data_loader(
     bucket_size_multiplier=100,
 ):
     dataset = TimitDataset(transcript_path, tokenizer, target_column=target_column)
-    pad_idx = tokenizer.stoi[tokenizer.special_tokens["pad"]]
+    target_fill_token = tokenizer.special_tokens.get("pad", tokenizer.special_tokens["blank"])
+    target_fill_idx = tokenizer.stoi[target_fill_token]
 
     if bucket_by_duration or sort_by_duration:
         if "duration" not in dataset.df:
@@ -143,12 +144,12 @@ def build_data_loader(
         return DataLoader(
             dataset,
             batch_sampler=batch_sampler,
-            collate_fn=TransducerCollate(pad_idx),
+            collate_fn=TransducerCollate(target_fill_idx),
         )
 
     return DataLoader(
         dataset,
         batch_size=batch_size,
         shuffle=shuffle,
-        collate_fn=TransducerCollate(pad_idx),
+        collate_fn=TransducerCollate(target_fill_idx),
     )
