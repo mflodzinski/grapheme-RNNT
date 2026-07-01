@@ -1,6 +1,83 @@
 import pandas as pd
 
 
+TIMIT_61_TO_39 = {
+    "aa": "aa",
+    "ae": "ae",
+    "ah": "ah",
+    "ao": "aa",
+    "aw": "aw",
+    "ax": "ah",
+    "ax-h": "ah",
+    "axr": "er",
+    "ay": "ay",
+    "b": "b",
+    "bcl": "sil",
+    "ch": "ch",
+    "d": "d",
+    "dcl": "sil",
+    "dh": "dh",
+    "dx": "dx",
+    "eh": "eh",
+    "el": "l",
+    "em": "m",
+    "en": "n",
+    "eng": "ng",
+    "epi": "sil",
+    "er": "er",
+    "ey": "ey",
+    "f": "f",
+    "g": "g",
+    "gcl": "sil",
+    "h#": "sil",
+    "hh": "hh",
+    "hv": "hh",
+    "ih": "ih",
+    "ix": "ih",
+    "iy": "iy",
+    "jh": "jh",
+    "k": "k",
+    "kcl": "sil",
+    "l": "l",
+    "m": "m",
+    "n": "n",
+    "ng": "ng",
+    "nx": "n",
+    "ow": "ow",
+    "oy": "oy",
+    "p": "p",
+    "pau": "sil",
+    "pcl": "sil",
+    "r": "r",
+    "s": "s",
+    "sh": "sh",
+    "t": "t",
+    "tcl": "sil",
+    "th": "th",
+    "uh": "uh",
+    "uw": "uw",
+    "ux": "uw",
+    "v": "v",
+    "w": "w",
+    "y": "y",
+    "z": "z",
+    "zh": "sh",
+}
+
+TIMIT_IGNORED_PHONES = {"q"}
+
+
+def normalize_timit_39(tokens):
+    normalized = []
+    for token in tokens:
+        if token in TIMIT_IGNORED_PHONES:
+            continue
+        if token not in TIMIT_61_TO_39:
+            raise ValueError(f"Unsupported TIMIT phone for 39-phone mapping: {token}")
+        normalized.append(TIMIT_61_TO_39[token])
+    return normalized
+
+
 class SequenceTokenizer:
     def __init__(
         self,
@@ -8,6 +85,7 @@ class SequenceTokenizer:
         batch_size,
         target_column="transcript",
         mode="char",
+        target_normalization=None,
     ):
         self.special_tokens = {
             "pad": "<pad>",
@@ -16,6 +94,7 @@ class SequenceTokenizer:
         self.batch_size = batch_size
         self.target_column = target_column
         self.mode = mode
+        self.target_normalization = target_normalization
 
         self.vocab = self.get_vocab(transcript_path)
         self.stoi = {s: i for i, s in enumerate(self.vocab)}
@@ -49,9 +128,18 @@ class SequenceTokenizer:
         if not value:
             return []
         if self.mode == "char":
+            if self.target_normalization:
+                raise ValueError("Target normalization is only supported for token mode.")
             return list(value)
         if self.mode == "token":
-            return value.split()
+            tokens = value.split()
+            if self.target_normalization is None:
+                return tokens
+            if self.target_normalization == "timit_39":
+                return normalize_timit_39(tokens)
+            raise ValueError(
+                f"Unsupported target normalization: {self.target_normalization}"
+            )
         raise ValueError(f"Unsupported tokenizer mode: {self.mode}")
 
     def decode(self, ids, special_tokens=None):

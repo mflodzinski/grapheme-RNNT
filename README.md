@@ -129,6 +129,8 @@ The original RNN-T paper trained the model on phoneme sequences for TIMIT. This 
 
 The tokenizer treats the literal space character as a normal grapheme. It also adds `"<pad>"` for batching and `"<blank>"` for the RNN-T null transition. `"<blank>"` is prepended only to the prediction-network input history and is not stored as a transcript target.
 
+For phoneme experiments, `config/config_phoneme.yaml` enables `data.target_normalization: timit_39`. This applies the standard TIMIT 61-to-39 phone merges, maps silence and closure labels such as `h#`, `pau`, `epi`, `tcl`, and `kcl` to `sil`, and drops glottal-stop `q`. The resulting emitted vocabulary has 39 phones including `sil`. The normalization is applied at tokenizer/data-loader time before vocabulary construction, training, evaluation, and transcription export; the raw `timit/splits/*.csv` files are not rewritten.
+
 Checkpoints produced by older versions of this repository are not compatible with the current model shapes.
 
 Reference paper:

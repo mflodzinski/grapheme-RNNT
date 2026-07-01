@@ -230,6 +230,10 @@ def configured_error_metric(config: AttrDict):
     return "PER" if configured_tokenizer_mode(config) == "token" else "CER"
 
 
+def configured_target_normalization(config: AttrDict):
+    return config.data.target_normalization
+
+
 def prepare_data_loaders(config: AttrDict):
     bucket_by_duration = (
         True
@@ -249,6 +253,7 @@ def prepare_data_loaders(config: AttrDict):
         batch_size=config.training.batch_size,
         target_column=target_column,
         mode=configured_tokenizer_mode(config),
+        target_normalization=configured_target_normalization(config),
     )
 
     train_data = build_data_loader(
