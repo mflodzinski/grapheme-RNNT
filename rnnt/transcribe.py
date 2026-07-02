@@ -93,6 +93,27 @@ def configured_export_methods(config):
     return [str(method).lower() for method in methods]
 
 
+def configured_export_splits(config):
+    split_configs = {
+        "train": config.data.core_train,
+        "val": config.data.core_val,
+        "test": config.data.core_test,
+    }
+    splits = config.training.export_splits
+    if splits is None:
+        return list(split_configs.items())
+    requested_splits = [str(split).lower() for split in splits]
+    unknown_splits = [
+        split for split in requested_splits if split not in split_configs
+    ]
+    if unknown_splits:
+        raise ValueError(
+            "Unsupported export split(s): "
+            f"{', '.join(unknown_splits)}. Expected train, val, or test."
+        )
+    return [(split, split_configs[split]) for split in requested_splits]
+
+
 def transcription_output_file(config, split_name, decode_method):
     output_dir = config.data.transcriptions_dir
     if output_dir is None:
@@ -110,11 +131,7 @@ def transcription_output_file(config, split_name, decode_method):
 
 
 def export_all_transcriptions(model, config, tokenizer, device, logger=None):
-    split_configs = [
-        ("train", config.data.core_train),
-        ("val", config.data.core_val),
-        ("test", config.data.core_test),
-    ]
+    split_configs = configured_export_splits(config)
     decode_methods = configured_export_methods(config)
 
     for split_name, split_path in split_configs:

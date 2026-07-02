@@ -54,6 +54,10 @@ training:
     early_stopping_min_cer_delta: 0.0
     restore_best_model: True
     export_transcriptions_after_training: True
+    export_splits:
+        - train
+        - val
+        - test
     export_decode_methods:
         - greedy
 

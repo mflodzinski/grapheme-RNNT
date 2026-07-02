@@ -20,7 +20,8 @@ VENV_DIR="${VENV_DIR:-.venv-daic}"
 BASE_CONFIG="${RNNT_CONFIG:-config/config_phoneme.yaml}"
 RNNT_MODEL="${RNNT_MODEL:-info_phoneme/best.epoch}"
 DECODE_OUTPUT_DIR="${DECODE_OUTPUT_DIR:-outputs_phoneme_beam}"
-BEAM_WIDTH="${BEAM_WIDTH:-500}"
+BEAM_WIDTH="${BEAM_WIDTH:-50}"
+EXPORT_SPLITS="${EXPORT_SPLITS:-val,test}"
 
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
 export MKL_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
@@ -52,6 +53,7 @@ export BASE_CONFIG
 export RNNT_MODEL
 export DECODE_OUTPUT_DIR
 export BEAM_WIDTH
+export EXPORT_SPLITS
 export RNNT_CONFIG="${EVAL_CONFIG}"
 
 python - <<'PY'
@@ -67,6 +69,9 @@ with base_config.open() as file:
 config["training"]["load_model"] = os.environ["RNNT_MODEL"]
 config["training"]["export_transcriptions_after_training"] = False
 config["training"]["export_decode_methods"] = ["beam"]
+config["training"]["export_splits"] = [
+    split.strip() for split in os.environ["EXPORT_SPLITS"].split(",") if split.strip()
+]
 config["training"]["evaluate"] = False
 config["wandb"]["enabled"] = False
 config["data"]["transcriptions_dir"] = os.environ["DECODE_OUTPUT_DIR"]
@@ -85,6 +90,7 @@ echo "Base config: ${BASE_CONFIG}"
 echo "Eval config: ${RNNT_CONFIG}"
 echo "Checkpoint: ${RNNT_MODEL}"
 echo "Beam width: ${BEAM_WIDTH}"
+echo "Export splits: ${EXPORT_SPLITS}"
 echo "Output dir: timit/${DECODE_OUTPUT_DIR}"
 echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-unset}"
 
@@ -133,8 +139,11 @@ def edit_distance(left, right):
 output_dir = Path("timit") / Path(os.environ["DECODE_OUTPUT_DIR"])
 summary_file = output_dir / "per_beam.tsv"
 rows = []
+splits = [
+    split.strip() for split in os.environ["EXPORT_SPLITS"].split(",") if split.strip()
+]
 
-for split in ("train", "val", "test"):
+for split in splits:
     transcription_file = output_dir / f"transcriptions_{split}_beam.tsv"
     total_edits = 0
     total_target_tokens = 0
@@ -171,11 +180,11 @@ print(f"Wrote PER summary to {summary_file}")
 PY
 
 echo "Beam transcriptions:"
-echo "  timit/${DECODE_OUTPUT_DIR}/transcriptions_train_beam.tsv"
-echo "  timit/${DECODE_OUTPUT_DIR}/transcriptions_val_beam.tsv"
-echo "  timit/${DECODE_OUTPUT_DIR}/transcriptions_test_beam.tsv"
+for split in ${EXPORT_SPLITS//,/ }; do
+    echo "  timit/${DECODE_OUTPUT_DIR}/transcriptions_${split}_beam.tsv"
+done
 echo "PER files:"
-echo "  timit/${DECODE_OUTPUT_DIR}/per_train_beam.txt"
-echo "  timit/${DECODE_OUTPUT_DIR}/per_val_beam.txt"
-echo "  timit/${DECODE_OUTPUT_DIR}/per_test_beam.txt"
+for split in ${EXPORT_SPLITS//,/ }; do
+    echo "  timit/${DECODE_OUTPUT_DIR}/per_${split}_beam.txt"
+done
 echo "  timit/${DECODE_OUTPUT_DIR}/per_beam.tsv"
