@@ -30,6 +30,10 @@ model:
         hidden_size: 128
         num_layers: 1
         dropout: 0
+    joint:
+        type: learned_additive
+        hidden_size: 256
+        activation: tanh
     decode:
         method: greedy
         beam_width: 5

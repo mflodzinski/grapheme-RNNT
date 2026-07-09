@@ -1,6 +1,6 @@
 # RNN Transducer for TIMIT Grapheme ASR
 
-This project implements an RNN Transducer (RNN-T) speech-to-text system in PyTorch for the TIMIT dataset. It uses an encoder, prediction network, and additive joint, and trains on grapheme targets built from transcript characters.
+This project implements an RNN Transducer (RNN-T) speech-to-text system in PyTorch for the TIMIT dataset. It uses an encoder, prediction network, and learned additive joint, and trains on grapheme targets built from transcript characters.
 
 ![RNN-T architecture](https://user-images.githubusercontent.com/61272193/156832630-ad0c7d31-b262-470e-9b88-77088adf90ff.png)
 
@@ -14,14 +14,14 @@ Architecture image from [msalhab96/RNN-Transducer](https://github.com/msalhab96/
 - Trains an RNN-T model with:
   - bidirectional LSTM encoder,
   - embedding-fed LSTM prediction network,
-  - parameter-free additive joint over encoder and prediction representations,
+  - learned additive joint over encoder and prediction representations,
   - RNN-T loss from `torchaudio.transforms.RNNTLoss`.
 - Evaluates recognition quality with character error rate (CER).
 - Saves checkpoints locally and logs metrics to Weights & Biases.
 
 ## Repository Layout
 
-- `rnnt/model.py` defines the transducer, bidirectional LSTM encoder, prediction network, additive joint, loss, and greedy/beam recognizers.
+- `rnnt/model.py` defines the transducer, bidirectional LSTM encoder, prediction network, learned additive joint, loss, and greedy/beam recognizers.
 - `rnnt/data.py` defines the PyTorch dataset, dataloaders, and batch padding.
 - `rnnt/tokenizer.py` builds the grapheme vocabulary.
 - `rnnt/train.py` runs training, validation, checkpointing, and logging.
@@ -73,31 +73,36 @@ pip install -r requirements.txt
 
 The TIMIT files in this repo are NIST SPHERE files. The preprocessing notebook loads them with `soundfile` and uses `torchaudio` only for Kaldi-compatible MFCC extraction, so it does not require TorchCodec or FFmpeg.
 
-### DAIC / Slurm Setup
+### DAIC / Slurm
 
 The DAIC Slurm script activates a virtual environment from the repository root.
-It uses `.venv-daic` when present, otherwise `.venv`. Create one once on a
-login node before submitting the job:
+It uses `.venv-daic` when present, otherwise `.venv`, otherwise the shared
+`/home/nfs/mlodzinski/venvs/mode-connectivity` environment. If no environment
+exists, the job creates `.venv-daic` and installs `requirements.txt` before
+training.
 
 ```bash
 cd /tudelft.net/staff-bulk/ewi/insy/PRLab/Students/mlodzinski/grapheme-RNNT
-python -m venv .venv-daic
-source .venv-daic/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
-wandb login
+sbatch ops/slurm/train_rnnt_daic.sh
 ```
 
-Then submit the training job from the repository root:
+Authenticate Weights & Biases once before training if online logging is enabled:
 
 ```bash
-sbatch ops/slurm/train_rnnt_daic.sh
+source .venv-daic/bin/activate
+wandb login
 ```
 
 If you already have a differently named environment, pass it at submission time:
 
 ```bash
 sbatch --export=ALL,VENV_DIR=.venv ops/slurm/train_rnnt_daic.sh
+```
+
+You can also pass an activation script directly:
+
+```bash
+sbatch --export=ALL,VENV_ACTIVATE=/home/nfs/mlodzinski/venvs/mode-connectivity/bin/activate ops/slurm/train_rnnt_daic.sh
 ```
 
 ## Training
@@ -153,7 +158,7 @@ timit/outputs/transcriptions_test_greedy.tsv
 
 The tokenizer treats the literal space character as a normal grapheme. It adds `"<blank>"` for the RNN-T null transition. It omits a `"<pad>"` output class for online training with `batch_size: 1`, and adds `"<pad>"` only when `batch_size > 1` requires padded target batches. `"<blank>"` is prepended only to the prediction-network input history and is not stored as a transcript target.
 
-Checkpoints produced by older versions of this repository are not compatible with the current model shapes.
+Checkpoints produced by older versions of this repository are not compatible with the current model shapes. In particular, raw-additive-joint checkpoints with vocab-sized encoder/decoder projections are not compatible with the learned additive joint.
 
 Reference paper:
 

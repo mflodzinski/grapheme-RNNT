@@ -114,7 +114,7 @@ def log_model_parameters(model: Transducer, logger: Logger):
     logger.info(f"# the number of parameters in the Encoder: {enc}")
     logger.info(f"# the number of parameters in the Decoder: {dec}")
     logger.info(
-        f"# the number of parameters in the Additive Joint: {n_params - enc - dec}"
+        f"# the number of parameters in the Joint Network: {n_params - enc - dec}"
     )
 
 

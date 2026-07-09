@@ -16,11 +16,16 @@ set -euo pipefail
 SUBMIT_DIR="${SLURM_SUBMIT_DIR:-$(pwd)}"
 cd "${SUBMIT_DIR}"
 
-if [[ -z "${VENV_DIR:-}" ]]; then
+if [[ -n "${VENV_ACTIVATE:-}" ]]; then
+    VENV_DIR="$(dirname "$(dirname "${VENV_ACTIVATE}")")"
+elif [[ -z "${VENV_DIR:-}" ]]; then
     if [[ -d ".venv-daic" ]]; then
         VENV_DIR=".venv-daic"
     elif [[ -d ".venv" ]]; then
         VENV_DIR=".venv"
+    elif [[ -f "/home/nfs/mlodzinski/venvs/mode-connectivity/bin/activate" ]]; then
+        VENV_ACTIVATE="/home/nfs/mlodzinski/venvs/mode-connectivity/bin/activate"
+        VENV_DIR="$(dirname "$(dirname "${VENV_ACTIVATE}")")"
     else
         VENV_DIR=".venv-daic"
     fi
@@ -40,20 +45,37 @@ export PYTHONUNBUFFERED=1
 mkdir -p info "${WANDB_DIR}"
 
 if [[ ! -d "${VENV_DIR}" ]]; then
-    echo "Virtualenv ${VENV_DIR} does not exist. Create it on a login node before sbatch."
-    echo "From the repository root, run:"
-    echo "  python -m venv ${VENV_DIR}"
-    echo "  source ${VENV_DIR}/bin/activate"
-    echo "  pip install --upgrade pip"
-    echo "  pip install -r requirements.txt"
-    echo "Then submit again with:"
-    echo "  sbatch ops/slurm/train_rnnt_daic.sh"
+    echo "Virtualenv ${VENV_DIR} does not exist; creating it now."
+    python -m venv "${VENV_DIR}"
+fi
+
+VENV_ACTIVATE="${VENV_ACTIVATE:-${VENV_DIR}/bin/activate}"
+if [[ ! -f "${VENV_ACTIVATE}" ]]; then
+    echo "Virtualenv activation script ${VENV_ACTIVATE} does not exist."
+    echo "Pass VENV_DIR=/path/to/env or VENV_ACTIVATE=/path/to/env/bin/activate."
     exit 1
 fi
 
 # shellcheck disable=SC1091
-source "${VENV_DIR}/bin/activate"
+source "${VENV_ACTIVATE}"
 echo "Activated virtualenv: ${VENV_DIR}"
+
+if [[ -z "${AUTO_INSTALL_REQUIREMENTS:-}" ]]; then
+    if [[ "${VENV_DIR}" = /* ]]; then
+        AUTO_INSTALL_REQUIREMENTS=0
+    else
+        AUTO_INSTALL_REQUIREMENTS=1
+    fi
+fi
+
+if [[ "${AUTO_INSTALL_REQUIREMENTS}" == "1" ]]; then
+    REQUIREMENTS_STAMP="${VENV_DIR}/.requirements-installed"
+    if [[ ! -f "${REQUIREMENTS_STAMP}" || requirements.txt -nt "${REQUIREMENTS_STAMP}" ]]; then
+        python -m pip install --upgrade pip
+        python -m pip install -r requirements.txt
+        touch "${REQUIREMENTS_STAMP}"
+    fi
+fi
 
 echo "Submit dir: ${SUBMIT_DIR}"
 echo "Host: $(hostname)"

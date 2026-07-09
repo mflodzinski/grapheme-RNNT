@@ -156,6 +156,13 @@ def build_decoder(config, vocab_size, output_size, padding_idx=None):
     raise NotImplementedError
 
 
+def config_value(config, name, default=None):
+    if config is None:
+        return default
+    value = getattr(config, name)
+    return default if value is None else value
+
+
 class AdditiveJointNet(nn.Module):
     def __init__(self, vocab_size):
         super(AdditiveJointNet, self).__init__()
@@ -169,6 +176,51 @@ class AdditiveJointNet(nn.Module):
             assert enc_state.dim() == dec_state.dim()
 
         return enc_state + dec_state
+
+
+class LearnedAdditiveJointNet(nn.Module):
+    def __init__(self, input_size, hidden_size, vocab_size, activation="tanh"):
+        super(LearnedAdditiveJointNet, self).__init__()
+        if activation != "tanh":
+            raise ValueError(f"Unsupported joint activation: {activation}")
+
+        self.enc_proj = nn.Linear(input_size, hidden_size)
+        self.dec_proj = nn.Linear(input_size, hidden_size)
+        self.output = nn.Linear(hidden_size, vocab_size)
+
+    def forward(self, enc_state, dec_state):
+        if enc_state.dim() == 3 and dec_state.dim() == 3:
+            dec_state = dec_state.unsqueeze(1)
+            enc_state = enc_state.unsqueeze(2)
+        else:
+            assert enc_state.dim() == dec_state.dim()
+
+        joint_state = torch.tanh(self.enc_proj(enc_state) + self.dec_proj(dec_state))
+        return self.output(joint_state)
+
+
+def configured_joint_type(config):
+    return config_value(config.joint, "type", "learned_additive")
+
+
+def configured_joint_hidden_size(config, vocab_size):
+    if configured_joint_type(config) == "additive":
+        return vocab_size
+    return int(config_value(config.joint, "hidden_size", 256))
+
+
+def build_joint(config, input_size, vocab_size):
+    joint_type = configured_joint_type(config)
+    if joint_type == "additive":
+        return AdditiveJointNet(vocab_size=vocab_size)
+    if joint_type == "learned_additive":
+        return LearnedAdditiveJointNet(
+            input_size=input_size,
+            hidden_size=configured_joint_hidden_size(config, vocab_size),
+            vocab_size=vocab_size,
+            activation=config_value(config.joint, "activation", "tanh"),
+        )
+    raise ValueError(f"Unsupported joint type: {joint_type}")
 
 
 def logaddexp(a, b):
@@ -204,7 +256,7 @@ class Transducer(nn.Module):
         self.device = device
         self.vocab_size = vocab_size
         self.pad_idx = pad_idx
-        joint_size = vocab_size
+        joint_size = configured_joint_hidden_size(config, vocab_size)
         self.encoder = build_encoder(config, joint_size)
         self.decoder = build_decoder(
             config,
@@ -213,7 +265,7 @@ class Transducer(nn.Module):
             padding_idx=pad_idx,
         )
 
-        self.joint = AdditiveJointNet(vocab_size=vocab_size)
+        self.joint = build_joint(config, joint_size, vocab_size)
         self.blank = vocab_size - 1
         self.crit = RNNTLossAdapter(blank=self.blank)
 
