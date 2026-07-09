@@ -39,7 +39,7 @@ model:
         beam_width: 5
 training:
     seed: 42
-    batch_size: 1
+    batch_size: 4
     bucket_by_duration: True
     bucket_size_multiplier: 100
     sort_eval_by_duration: True
