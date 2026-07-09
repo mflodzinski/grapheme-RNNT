@@ -11,7 +11,7 @@ import torch
 from model import Transducer
 from optim import Optimizer
 from transcribe import export_all_transcriptions
-from tokenizer import SequenceTokenizer
+from tokenizer import GraphemeTokenizer
 from utils import AttrDict
 from typing import Optional, Union
 import utils
@@ -242,7 +242,7 @@ def train_model(
     logger: Logger,
     device: Union[str, torch.device],
     tracker,
-    tokenizer: SequenceTokenizer,
+    tokenizer: GraphemeTokenizer,
 ):
     special_tokens = [
         tokenizer.stoi[token]
@@ -267,7 +267,7 @@ def train_model(
     eval_every = config.training.eval_every or config.training.save_every
     train_cer_samples = config.training.train_cer_samples or 0
     logs_per_epoch = configured_logs_per_epoch(config)
-    metric_name = utils.configured_error_metric(config)
+    metric_name = "CER"
 
     if early_stopping and not config.training.evaluate:
         logger.info("Early stopping is enabled but evaluation is disabled.")

@@ -1,6 +1,6 @@
 # RNN Transducer for TIMIT Grapheme ASR
 
-This project implements an RNN Transducer (RNN-T) speech-to-text system in PyTorch for the TIMIT dataset. It follows the encoder, prediction network, and additive joint design from the original RNN-T paper, but trains directly on graphemes instead of phonemes. The target vocabulary is built from transcript characters, so the model predicts written text characters end to end from acoustic features.
+This project implements an RNN Transducer (RNN-T) speech-to-text system in PyTorch for the TIMIT dataset. It uses an encoder, prediction network, and additive joint, and trains on grapheme targets built from transcript characters.
 
 ![RNN-T architecture](https://user-images.githubusercontent.com/61272193/156832630-ad0c7d31-b262-470e-9b88-77088adf90ff.png)
 
@@ -15,7 +15,7 @@ Architecture image from [msalhab96/RNN-Transducer](https://github.com/msalhab96/
   - bidirectional LSTM encoder,
   - embedding-fed LSTM prediction network,
   - parameter-free additive joint over encoder and prediction representations,
-  - RNN-T loss from `warprnnt_pytorch`.
+  - RNN-T loss from `torchaudio.transforms.RNNTLoss`.
 - Evaluates recognition quality with character error rate (CER).
 - Saves checkpoints locally and logs metrics to Weights & Biases.
 
@@ -71,7 +71,6 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-If `warprnnt-pytorch` fails to build on the cluster, install it separately using the cluster's CUDA/PyTorch-specific instructions after installing the rest of the requirements.
 The TIMIT files in this repo are NIST SPHERE files. The preprocessing notebook loads them with `soundfile` and uses `torchaudio` only for Kaldi-compatible MFCC extraction, so it does not require TorchCodec or FFmpeg.
 
 ## Training
@@ -125,13 +124,7 @@ timit/outputs/transcriptions_test_greedy.tsv
 
 ## Notes
 
-The original RNN-T paper trained the model on phoneme sequences for TIMIT. This project instead uses the text transcripts directly and optimizes over grapheme targets, making the output a character-level speech-to-text system rather than a phoneme recognizer.
-
 The tokenizer treats the literal space character as a normal grapheme. It adds `"<blank>"` for the RNN-T null transition. It omits a `"<pad>"` output class for online training with `batch_size: 1`, and adds `"<pad>"` only when `batch_size > 1` requires padded target batches. `"<blank>"` is prepended only to the prediction-network input history and is not stored as a transcript target.
-
-For phoneme experiments, `config/config_phoneme.yaml` enables `data.target_normalization: timit_39`. This applies the standard TIMIT 61-to-39 phone merges, maps silence and closure labels such as `h#`, `pau`, `epi`, `tcl`, and `kcl` to `sil`, and drops glottal-stop `q`. The resulting emitted vocabulary has 39 phones including `sil`. The normalization is applied at tokenizer/data-loader time before vocabulary construction, training, evaluation, and transcription export; the raw `timit/splits/*.csv` files are not rewritten.
-
-The phoneme config also uses paper-style recurrent sizes: 26 acoustic inputs, online training with batch size 1, one bidirectional size-128 LSTM transcription layer with 40-dimensional transcription vectors, one size-128 LSTM prediction layer fed by 39-dimensional label embeddings, and an additive joint that sums transcription and prediction logits directly without a tanh layer. During training, `training.weight_noise_std: 0.075` injects Gaussian noise into weight matrices for each forward/backward pass and restores the clean weights before the optimizer step.
 
 Checkpoints produced by older versions of this repository are not compatible with the current model shapes.
 

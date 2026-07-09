@@ -22,7 +22,6 @@ def build_transcription_loader(config, split_path, tokenizer):
         os.path.join(config.data.name, split_path),
         tokenizer,
         batch_size=config.training.batch_size,
-        target_column=config.data.target_column or "transcript",
         shuffle=False,
         bucket_by_duration=False,
         sort_by_duration=False,

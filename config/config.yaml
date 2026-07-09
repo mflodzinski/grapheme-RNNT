@@ -13,8 +13,6 @@ data:
     core_train: splits/core_train.csv
     core_test: splits/core_test.csv
     core_val: splits/core_val.csv
-    target_column: transcript
-    tokenizer: char
     transcriptions_dir: outputs
     
 model:
@@ -23,9 +21,9 @@ model:
     enc:
         type: lstm
         hidden_size: 128
-        num_layers: 2
+        num_layers: 1
         bidirectional: True
-        dropout: 0.2
+        dropout: 0
     dec:
         type: lstm
         embedding_size: 128
@@ -36,13 +34,14 @@ model:
         method: greedy
         beam_width: 5
 training:
-    seed: 1942
+    seed: 42
     batch_size: 1
     bucket_by_duration: True
     bucket_size_multiplier: 100
     sort_eval_by_duration: True
     epochs: 100
     max_grad_norm: 20
+    weight_noise_std: 0.075
     progress_logs_per_epoch: 5
     eval_every: 5
     save_every: 20

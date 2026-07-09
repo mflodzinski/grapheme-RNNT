@@ -11,15 +11,12 @@ class RNNTLossAdapter(nn.Module):
         super(RNNTLossAdapter, self).__init__()
         self.blank = blank
         try:
-            from warprnnt_pytorch import RNNTLoss
-        except ImportError:
-            try:
-                from torchaudio.transforms import RNNTLoss
-            except ImportError as exc:
-                raise ImportError(
-                    "RNN-T training requires an RNN-T loss implementation. "
-                    "Install torchaudio or warprnnt_pytorch."
-                ) from exc
+            from torchaudio.transforms import RNNTLoss
+        except ImportError as exc:
+            raise ImportError(
+                "RNN-T training requires torchaudio.transforms.RNNTLoss. "
+                "Install torchaudio."
+            ) from exc
 
         self.loss = RNNTLoss(blank=blank, reduction="none")
 

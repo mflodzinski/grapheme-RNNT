@@ -11,7 +11,7 @@ import editdistance
 from data import build_data_loader
 from optim import Optimizer
 from model import Transducer
-from tokenizer import SequenceTokenizer
+from tokenizer import GraphemeTokenizer
 
 
 class AttrDict(dict):
@@ -224,21 +224,6 @@ def adjust_learning_rate(
 
 def create_optimizer(model: Transducer, config: AttrDict):
     return Optimizer(model, config)
-    
-def configured_target_column(config: AttrDict):
-    return config.data.target_column or "transcript"
-
-
-def configured_tokenizer_mode(config: AttrDict):
-    return config.data.tokenizer or "char"
-
-
-def configured_error_metric(config: AttrDict):
-    return "PER" if configured_tokenizer_mode(config) == "token" else "CER"
-
-
-def configured_target_normalization(config: AttrDict):
-    return config.data.target_normalization
 
 
 def prepare_data_loaders(config: AttrDict):
@@ -254,20 +239,15 @@ def prepare_data_loaders(config: AttrDict):
     )
     bucket_size_multiplier = config.training.bucket_size_multiplier or 100
 
-    target_column = configured_target_column(config)
-    tokenizer = SequenceTokenizer(
+    tokenizer = GraphemeTokenizer(
         transcript_path=os.path.join(config.data.name, config.data.core_train),
         batch_size=config.training.batch_size,
-        target_column=target_column,
-        mode=configured_tokenizer_mode(config),
-        target_normalization=configured_target_normalization(config),
     )
 
     train_data = build_data_loader(
         os.path.join(config.data.name, config.data.core_train),
         tokenizer,
         batch_size=config.training.batch_size,
-        target_column=target_column,
         shuffle=True,
         bucket_by_duration=bucket_by_duration and config.training.batch_size > 1,
         bucket_size_multiplier=bucket_size_multiplier,
@@ -276,14 +256,12 @@ def prepare_data_loaders(config: AttrDict):
         os.path.join(config.data.name, config.data.core_test),
         tokenizer,
         batch_size=config.training.batch_size,
-        target_column=target_column,
         sort_by_duration=sort_eval_by_duration and config.training.batch_size > 1,
     )
     val_data = build_data_loader(
         os.path.join(config.data.name, config.data.core_val),
         tokenizer,
         batch_size=config.training.batch_size,
-        target_column=target_column,
         sort_by_duration=sort_eval_by_duration and config.training.batch_size > 1,
     )
     return train_data, test_data, val_data, tokenizer

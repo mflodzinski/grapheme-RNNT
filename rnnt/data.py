@@ -9,15 +9,12 @@ from torch.utils.data import BatchSampler, DataLoader, Dataset
 
 
 class TimitDataset(Dataset):
-    def __init__(self, transcript_path, tokenizer, target_column="transcript"):
+    def __init__(self, transcript_path, tokenizer):
         self.df = pd.read_csv(transcript_path)
         self.tokenizer = tokenizer
-        self.target_column = target_column
 
-        if self.target_column not in self.df:
-            raise ValueError(
-                f"{transcript_path} must contain a `{self.target_column}` column."
-            )
+        if "transcript" not in self.df:
+            raise ValueError(f"{transcript_path} must contain a `transcript` column.")
 
     def __len__(self):
         return len(self.df)
@@ -27,7 +24,7 @@ class TimitDataset(Dataset):
         features = self.load_features(row)
         targets = torch.tensor(
             self.tokenizer.tokens2ids(
-                self.tokenizer.tokenize(str(row[self.target_column]))
+                self.tokenizer.tokenize(str(row["transcript"]))
             ),
             dtype=torch.int32,
         )
@@ -120,13 +117,12 @@ def build_data_loader(
     transcript_path,
     tokenizer,
     batch_size,
-    target_column="transcript",
     shuffle=False,
     bucket_by_duration=False,
     sort_by_duration=False,
     bucket_size_multiplier=100,
 ):
-    dataset = TimitDataset(transcript_path, tokenizer, target_column=target_column)
+    dataset = TimitDataset(transcript_path, tokenizer)
     target_fill_token = tokenizer.special_tokens.get("pad", tokenizer.special_tokens["blank"])
     target_fill_idx = tokenizer.stoi[target_fill_token]
 
