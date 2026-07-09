@@ -16,7 +16,15 @@ set -euo pipefail
 SUBMIT_DIR="${SLURM_SUBMIT_DIR:-$(pwd)}"
 cd "${SUBMIT_DIR}"
 
-VENV_DIR="${VENV_DIR:-.venv-daic}"
+if [[ -z "${VENV_DIR:-}" ]]; then
+    if [[ -d ".venv-daic" ]]; then
+        VENV_DIR=".venv-daic"
+    elif [[ -d ".venv" ]]; then
+        VENV_DIR=".venv"
+    else
+        VENV_DIR=".venv-daic"
+    fi
+fi
 WANDB_MODE="${WANDB_MODE:-online}"
 WANDB_PROJECT="${WANDB_PROJECT:-rnn-transducer}"
 WANDB_NAME="${WANDB_NAME:-rnnt-daic-${SLURM_JOB_ID:-local}}"
@@ -33,12 +41,19 @@ mkdir -p info "${WANDB_DIR}"
 
 if [[ ! -d "${VENV_DIR}" ]]; then
     echo "Virtualenv ${VENV_DIR} does not exist. Create it on a login node before sbatch."
-    echo "See the setup commands in the README/instructions."
+    echo "From the repository root, run:"
+    echo "  python -m venv ${VENV_DIR}"
+    echo "  source ${VENV_DIR}/bin/activate"
+    echo "  pip install --upgrade pip"
+    echo "  pip install -r requirements.txt"
+    echo "Then submit again with:"
+    echo "  sbatch ops/slurm/train_rnnt_daic.sh"
     exit 1
 fi
 
 # shellcheck disable=SC1091
 source "${VENV_DIR}/bin/activate"
+echo "Activated virtualenv: ${VENV_DIR}"
 
 echo "Submit dir: ${SUBMIT_DIR}"
 echo "Host: $(hostname)"

@@ -73,6 +73,33 @@ pip install -r requirements.txt
 
 The TIMIT files in this repo are NIST SPHERE files. The preprocessing notebook loads them with `soundfile` and uses `torchaudio` only for Kaldi-compatible MFCC extraction, so it does not require TorchCodec or FFmpeg.
 
+### DAIC / Slurm Setup
+
+The DAIC Slurm script activates a virtual environment from the repository root.
+It uses `.venv-daic` when present, otherwise `.venv`. Create one once on a
+login node before submitting the job:
+
+```bash
+cd /tudelft.net/staff-bulk/ewi/insy/PRLab/Students/mlodzinski/grapheme-RNNT
+python -m venv .venv-daic
+source .venv-daic/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+wandb login
+```
+
+Then submit the training job from the repository root:
+
+```bash
+sbatch ops/slurm/train_rnnt_daic.sh
+```
+
+If you already have a differently named environment, pass it at submission time:
+
+```bash
+sbatch --export=ALL,VENV_DIR=.venv ops/slurm/train_rnnt_daic.sh
+```
+
 ## Training
 
 From the repository root, run:
