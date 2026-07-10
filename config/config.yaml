@@ -39,18 +39,19 @@ model:
         beam_width: 5
 training:
     seed: 42
-    batch_size: 4
+    batch_size: 1
     bucket_by_duration: True
     bucket_size_multiplier: 100
     sort_eval_by_duration: True
     epochs: 100
-    max_grad_norm: 20
+    max_grad_norm: 100
     weight_noise_std: 0.075
     progress_logs_per_epoch: 5
     eval_every: 5
     save_every: 20
     train_cer_samples: 256
     load_model:
+    pretrained_decoder:
     evaluate: True
     early_stopping: True
     early_stopping_patience: 5
@@ -63,6 +64,19 @@ training:
         - test
     export_decode_methods:
         - greedy
+
+lm_pretraining:
+    text_paths: []
+    output_path: info/decoder_lm.pt
+    batch_size: 64
+    epochs: 5
+    lr: 0.001
+    weight_decay: 0.0
+    max_grad_norm: 5.0
+    val_fraction: 0.02
+    max_chars: 256
+    seed: 42
+    num_workers: 0
 
 wandb:
     enabled: True
